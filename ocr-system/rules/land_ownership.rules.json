@@ -1,0 +1,25 @@
+{
+    "document_type": "LAND_OWNERSHIP",
+    "mandatory_fields": [
+        "owner_name",
+        "plot_number",
+        "village",
+        "district",
+        "state"
+    ],
+    "field_rules": {
+        "owner_name": {
+            "exact_match": true,
+            "match_strategy": "STRICT_IDENTITY"
+        },
+        "plot_number": {
+            "exact_match": true,
+            "match_strategy": "FLEXIBLE_ID"
+        }
+    },
+    "forbidden_patterns": [
+        "draft",
+        "sample"
+    ],
+    "strictness": "HIGH"
+}

@@ -1,0 +1,41 @@
+{
+    "document_type": "MSME_CERTIFICATE",
+    "mandatory_fields": [
+        "enterprise_name",
+        "udyam_registration_number",
+        "type_of_enterprise",
+        "major_activity",
+        "date_of_registration"
+    ],
+    "field_rules": {
+        "enterprise_name": {
+            "regex": "[A-Z0-9\\s.&()-]+",
+            "exact_match": true,
+            "match_strategy": "STRICT_IDENTITY"
+        },
+        "udyam_registration_number": {
+            "regex": "UDYAM-[A-Z]{2}-\\d{2}-\\d{7}",
+            "exact_match": true,
+            "match_strategy": "STRICT_IDENTITY"
+        },
+        "type_of_enterprise": {
+            "regex": "(Micro|Small|Medium)",
+            "exact_match": true
+        },
+        "major_activity": {
+            "regex": "(Manufacturing|Services|Trading)",
+            "exact_match": false
+        },
+        "date_of_registration": {
+            "regex": "\\d{2}-\\d{2}-\\d{4}",
+            "logical_check": "PAST_DATE",
+            "exact_match": false
+        }
+    },
+    "forbidden_patterns": [
+        "sample",
+        "dummy",
+        "test certificate"
+    ],
+    "strictness": "HIGH"
+}

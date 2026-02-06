@@ -1,0 +1,46 @@
+{
+    "document_type": "CONSENT_TO_OPERATE",
+    "mandatory_fields": [
+        "industry_name",
+        "consent_number",
+        "issuing_authority",
+        "date_of_issue",
+        "valid_upto",
+        "industry_address",
+        "category_of_industry"
+    ],
+    "field_rules": {
+        "industry_name": {
+            "regex": "[A-Z0-9\\s.&()-]+",
+            "exact_match": true,
+            "match_strategy": "STRICT_IDENTITY"
+        },
+        "consent_number": {
+            "regex": "[A-Z0-9/-]{6,}",
+            "exact_match": true,
+            "match_strategy": "FLEXIBLE_ID"
+        },
+        "issuing_authority": {
+            "regex": "(Pollution Control Board|SPCB|CPCB)",
+            "exact_match": false
+        },
+        "date_of_issue": {
+            "regex": "\\d{2}-\\d{2}-\\d{4}",
+            "logical_check": "PAST_DATE"
+        },
+        "valid_upto": {
+            "regex": "\\d{2}-\\d{2}-\\d{4}",
+            "logical_check": "FUTURE_DATE"
+        },
+        "category_of_industry": {
+            "regex": "(Red|Orange|Green|White)",
+            "exact_match": true
+        }
+    },
+    "forbidden_patterns": [
+        "sample",
+        "draft",
+        "provisional"
+    ],
+    "strictness": "VERY_HIGH"
+}

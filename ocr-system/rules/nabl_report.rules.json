@@ -1,0 +1,66 @@
+{
+    "document_type": "NABL_REPORT",
+    "mandatory_fields": [
+        "laboratory_name",
+        "nabl_accreditation_number",
+        "test_report_number",
+        "sample_description",
+        "sample_collection_date",
+        "test_date",
+        "authorized_signatory",
+        "parameter_table"
+    ],
+    "field_rules": {
+        "nabl_accreditation_number": {
+            "regex": "TC-\\d{3,5}|CC-\\d{3,5}|MC-\\d{3,5}",
+            "exact_match": true,
+            "match_strategy": "STRICT_IDENTITY"
+        },
+        "test_report_number": {
+            "regex": "[A-Z0-9/-]{6,}",
+            "exact_match": true,
+            "match_strategy": "FLEXIBLE_ID"
+        },
+        "sample_collection_date": {
+            "regex": "\\d{2}-\\d{2}-\\d{4}",
+            "logical_check": "PAST_DATE"
+        },
+        "test_date": {
+            "regex": "\\d{2}-\\d{2}-\\d{4}",
+            "logical_check": "PAST_DATE"
+        }
+    },
+    "water_quality_parameters": {
+        "pH": {
+            "min": 6.5,
+            "max": 8.5,
+            "severity": "HIGH"
+        },
+        "TDS": {
+            "max": 2000,
+            "unit": "mg/L",
+            "severity": "HIGH"
+        },
+        "Fluoride": {
+            "max": 1.5,
+            "unit": "mg/L",
+            "severity": "CRITICAL"
+        },
+        "Nitrate": {
+            "max": 45,
+            "unit": "mg/L",
+            "severity": "CRITICAL"
+        },
+        "Iron": {
+            "max": 0.3,
+            "unit": "mg/L",
+            "severity": "MEDIUM"
+        }
+    },
+    "forbidden_patterns": [
+        "sample report",
+        "training purpose only",
+        "not for regulatory use"
+    ],
+    "strictness": "VERY_HIGH"
+}

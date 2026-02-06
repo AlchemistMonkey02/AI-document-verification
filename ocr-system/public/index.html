@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR Comparison Tester</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
+        textarea { width: 100%; height: 100px; }
+        pre { background: #f4f4f4; padding: 1rem; overflow-x: auto; border-radius: 4px; }
+        button { padding: 0.5rem 1rem; background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>OCR & Text Comparison Test</h1>
+    
+    <div class="form-group">
+        <label for="fileInput">Select Document (DOCX, PDF, Image):</label>
+        <input type="file" id="fileInput" name="file">
+    </div>
+
+    <div class="form-group">
+        <label for="userInput">Comparison Text (search string):</label>
+        <textarea id="userInput" placeholder="Enter text to check for..."></textarea>
+    </div>
+
+    <button onclick="testAPI()">Run Comparison</button>
+
+    <h2>Result:</h2>
+    <pre id="result">Waiting for input...</pre>
+
+    <script>
+        async function testAPI() {
+            const fileInput = document.getElementById('fileInput');
+            const userInput = document.getElementById('userInput').value;
+            const resultDiv = document.getElementById('result');
+
+            if (!fileInput.files[0]) {
+                alert("Please select a file first.");
+                return;
+            }
+
+            resultDiv.textContent = "Processing... Please wait.";
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('user_input', userInput);
+
+            try {
+                const response = await fetch('/ocr', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                resultDiv.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                resultDiv.textContent = "Error: " + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

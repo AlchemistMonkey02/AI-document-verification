@@ -1,0 +1,41 @@
+{
+    "document_code": "DOC_MINE_PLAN",
+    "document_name": "Approved Mine Plan",
+    "document_domain": "MINING",
+    "application_scope": [
+        "MINING"
+    ],
+    "identification_keywords": [
+        "Approved Mine Plan"
+    ],
+    "issuing_authorities": [
+        "IBM"
+    ],
+    "mandatory_content_blocks": [
+        "lease_details",
+        "production_capacity"
+    ],
+    "field_rules": {
+        "lease_number": {
+            "exact_match": true
+        },
+        "mine_owner_name": {
+            "exact_match": true
+        },
+        "approval_date": {
+            "must_be": "PAST_DATE",
+            "exact_match": true
+        }
+    },
+    "numerical_rules": {},
+    "logical_rules": [
+        "lease_number MUST MATCH application"
+    ],
+    "cross_document_rules": [],
+    "authenticity_markers": [
+        "government_stamp"
+    ],
+    "forbidden_indicators": [],
+    "risk_weight": 95,
+    "verification_level": "CRITICAL"
+}
