@@ -1,0 +1,59 @@
+{
+    "document_code": "DOC_COI",
+    "document_name": "Certificate of Incorporation",
+    "document_domain": "CORPORATE",
+    "application_scope": [
+        "ALL"
+    ],
+    "identification": {
+        "primary_keywords": [
+            "Certificate of Incorporation"
+        ],
+        "secondary_keywords": [
+            "Ministry of Corporate Affairs",
+            "Registrar of Companies"
+        ],
+        "min_keyword_hits": 2
+    },
+    "issuing_authority": {
+        "allowed": [
+            "Ministry of Corporate Affairs"
+        ],
+        "must_be_present": true
+    },
+    "mandatory_sections": [
+        "company_name",
+        "cin",
+        "date_of_incorporation"
+    ],
+    "fields": {
+        "company_name": {
+            "required": true,
+            "match_strategy": "STRICT"
+        },
+        "cin": {
+            "regex": "[UL][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}",
+            "match_strategy": "STRICT",
+            "required": true
+        },
+        "date_of_incorporation": {
+            "date_constraint": "PAST",
+            "data_type": "DATE",
+            "required": true
+        }
+    },
+    "authenticity": {
+        "required": [
+            "digital_signature",
+            "mca_emblem"
+        ]
+    },
+    "forbidden": {
+        "keywords": [
+            "draft",
+            "sample"
+        ]
+    },
+    "risk_weight": 95,
+    "verification_level": "CRITICAL"
+}

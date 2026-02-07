@@ -1,0 +1,48 @@
+{
+    "document_code": "DOC_MOA_AOA",
+    "document_name": "MOA / AOA",
+    "document_domain": "CORPORATE",
+    "application_scope": [
+        "ALL"
+    ],
+    "identification": {
+        "primary_keywords": [
+            "Memorandum of Association",
+            "Articles of Association"
+        ],
+        "min_keyword_hits": 1
+    },
+    "issuing_authority": {
+        "allowed": [
+            "Ministry of Corporate Affairs"
+        ],
+        "must_be_present": false
+    },
+    "mandatory_sections": [
+        "company_name",
+        "registered_office",
+        "object_clause"
+    ],
+    "fields": {
+        "company_name": {
+            "match_strategy": "STRICT",
+            "required": true
+        },
+        "registered_office": {
+            "match_strategy": "STRICT",
+            "required": true
+        }
+    },
+    "logical_rules": [
+        "object_clause MUST SUPPORT application_business_type"
+    ],
+    "authenticity": {
+        "required": [],
+        "optional": [
+            "digital_signature",
+            "mca_reference_number"
+        ]
+    },
+    "risk_weight": 70,
+    "verification_level": "HIGH"
+}

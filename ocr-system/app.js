@@ -25,7 +25,13 @@ dirs.forEach(dir => {
 
 // Routes
 // Routes
+// Routes
 app.use("/", ocrRoutes);
+
+app.get('/', (req, res) => {
+    res.send("OCR System API is running. POST to /ocr to process files.");
+});
+
 
 // Health Check
 // Health Check

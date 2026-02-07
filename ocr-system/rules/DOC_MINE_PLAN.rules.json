@@ -1,0 +1,42 @@
+{
+    "document_code": "DOC_MINE_PLAN",
+    "document_name": "Approved Mine Plan",
+    "document_domain": "MINING",
+    "application_scope": [
+        "MINING"
+    ],
+    "identification": {
+        "primary_keywords": [
+            "Approved Mine Plan"
+        ],
+        "secondary_keywords": [
+            "IBM"
+        ],
+        "min_keyword_hits": 1
+    },
+    "issuing_authority": {
+        "allowed": [
+            "Indian Bureau of Mines"
+        ],
+        "must_be_present": true
+    },
+    "mandatory_sections": [
+        "lease_number",
+        "production_capacity",
+        "approval_date"
+    ],
+    "fields": {
+        "lease_number": {
+            "required": true,
+            "match_strategy": "STRICT",
+            "cross_match": "application.lease_number"
+        }
+    },
+    "authenticity": {
+        "required": [
+            "government_stamp"
+        ]
+    },
+    "risk_weight": 95,
+    "verification_level": "CRITICAL"
+}

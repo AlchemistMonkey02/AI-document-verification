@@ -1,0 +1,133 @@
+{
+    "document_code": "DOC_AADHAAR",
+    "document_name": "Aadhaar Card",
+    "document_domain": "IDENTITY",
+    "verification_level": "HIGH",
+    "risk_weight": 50,
+    "application_scope": [
+        "ALL"
+    ],
+    "identification": {
+        "primary_keywords": [
+            "Aadhaar",
+            "आधार"
+        ],
+        "secondary_keywords": [
+            "Unique Identification Authority",
+            "Authority of India",
+            "UIDAI",
+            "Government of India",
+            "भारत सरकार",
+            "भारतीय विशिष्ट पहचान प्राधिकरण",
+            "मेरा आधार"
+        ],
+        "language_variants": [
+            "EN",
+            "HI"
+        ],
+        "min_keyword_hits": 2,
+        "keyword_match_mode": "FUZZY_PHRASE"
+    },
+    "issuing_authority": {
+        "allowed": [
+            "UIDAI",
+            "Government of India",
+            "Authority of India"
+        ],
+        "regex": [
+            "Unique Identification Authority",
+            "UIDAI",
+            "विशिष्ट पहचान प्राधिकरण",
+            "Authority of India",
+            "Government of India"
+        ],
+        "must_be_present": true,
+        "match_mode": "FUZZY"
+    },
+    "mandatory_sections": [
+        "name",
+        "date_of_birth",
+        "gender",
+        "aadhaar_number"
+    ],
+    "fields": {
+        "aadhaar_number": {
+            "required": true,
+            "regex": "\\b\\d{4}\\s?\\d{4}\\s?\\d{4}\\b",
+            "data_type": "STRING",
+            "match_strategy": "STRICT",
+            "normalization": [
+                "REMOVE_SPACES"
+            ],
+            "confidence_weight": 30
+        },
+        "name": {
+            "required": true,
+            "data_type": "STRING",
+            "match_strategy": "SEMANTIC",
+            "normalization": [
+                "UPPERCASE",
+                "TRIM"
+            ],
+            "confidence_weight": 20
+        },
+        "date_of_birth": {
+            "required": true,
+            "data_type": "DATE",
+            "date_constraint": "PAST",
+            "accepted_formats": [
+                "DD/MM/YYYY",
+                "DD-MM-YYYY",
+                "YYYY-MM-DD"
+            ],
+            "confidence_weight": 10
+        },
+        "gender": {
+            "required": true,
+            "regex": "(Male|Female|Other|पुरुष|महिला)",
+            "normalization": [
+                "MAP_LOCALIZED_VALUES"
+            ],
+            "confidence_weight": 5
+        },
+        "vid": {
+            "required": false,
+            "regex": "\\b\\d{4}\\s?\\d{4}\\s?\\d{4}\\s?\\d{4}\\b",
+            "confidence_weight": 5
+        }
+    },
+    "authenticity": {
+        "required": [],
+        "optional": [
+            "government_emblem",
+            "qr_code",
+            "digital_signature"
+        ],
+        "signal_weights": {
+            "government_emblem": 15,
+            "qr_code": 20,
+            "digital_signature": 10
+        }
+    },
+    "forbidden": {
+        "keywords": [
+            "sample",
+            "dummy",
+            "specimen",
+            "xxxx",
+            "test"
+        ],
+        "hard_fail": true
+    },
+    "scoring": {
+        "pass_threshold": 70,
+        "manual_review_threshold": 50,
+        "fail_threshold": 0
+    },
+    "verdict_policy": {
+        "missing_optional_signals": "REDUCE_CONFIDENCE",
+        "missing_mandatory_fields": "FAIL",
+        "keyword_gate_fail": "FAIL",
+        "authority_fail": "FAIL"
+    }
+}

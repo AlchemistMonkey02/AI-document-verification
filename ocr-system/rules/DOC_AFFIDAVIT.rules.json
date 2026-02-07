@@ -1,0 +1,57 @@
+{
+    "document_code": "DOC_AFFIDAVIT",
+    "document_name": "Affidavit",
+    "document_domain": "LEGAL",
+    "application_scope": [
+        "ALL"
+    ],
+    "identification": {
+        "primary_keywords": [
+            "Affidavit"
+        ],
+        "secondary_keywords": [
+            "Notary",
+            "Stamp Paper"
+        ],
+        "min_keyword_hits": 2
+    },
+    "issuing_authority": {
+        "allowed": [
+            "Notary Public"
+        ],
+        "must_be_present": true
+    },
+    "mandatory_sections": [
+        "deponent_name",
+        "sworn_statement",
+        "date",
+        "notary_block"
+    ],
+    "fields": {
+        "stamp_value": {
+            "required": true,
+            "data_type": "NUMBER",
+            "match_strategy": "STRICT",
+            "cross_match": "application.required_stamp_value"
+        },
+        "deponent_name": {
+            "required": true,
+            "match_strategy": "SEMANTIC",
+            "cross_match": "application.applicant_name"
+        }
+    },
+    "authenticity": {
+        "required": [
+            "notary_seal",
+            "wet_signature"
+        ]
+    },
+    "forbidden": {
+        "keywords": [
+            "draft",
+            "unsigned"
+        ]
+    },
+    "risk_weight": 85,
+    "verification_level": "VERY_HIGH"
+}

@@ -14,17 +14,19 @@ function normalize(text) {
 }
 
 function loadRules(documentType) {
-    let filename = "";
-    switch (documentType) {
-        case "DOC_AFFIDAVIT": filename = "affidavit.rules.json"; break;
-        case "DOC_EC_CTE": filename = "consent_to_establish.rules.json"; break;
-        case "DOC_WATER_NON_AVAIL": filename = "water_non_availability.rules.json"; break;
-        case "DOC_GW_QUALITY": filename = "ground_water_quality.rules.json"; break;
-        case "DOC_IA_GW": filename = "impact_assessment.rules.json"; break;
-        case "DOC_MINE_PLAN": filename = "approved_mine_plan.rules.json"; break;
-        case "AADHAAR": filename = "aadhaar.rules.json"; break;
-        // Legacy/Default fallback
-        default: filename = `${documentType.toLowerCase()}.rules.json`;
+    let filename = `${documentType}.rules.json`;
+
+    // Legacy Mapping
+    const legacyMap = {
+        "AADHAAR": "DOC_AADHAAR.rules.json",
+        "PAN": "DOC_PAN_COMPANY.rules.json", // Assuming PAN Company for now, or need generic PAN?
+        // Add other legacy maps if known
+        "EC": "DOC_EC_CTE.rules.json",
+        "CTE": "DOC_EC_CTE.rules.json"
+    };
+
+    if (legacyMap[documentType]) {
+        filename = legacyMap[documentType];
     }
 
     try {
@@ -41,13 +43,38 @@ function loadRules(documentType) {
 /* ---------------- LOGIC ---------------- */
 
 function runKeywordGate(docText, rules) {
-    if (!rules.identification_keywords || rules.identification_keywords.length === 0) return { passed: true, hits: [], missing: [] };
+    if (!rules.identification) return { passed: true, hits: [], missing: [] };
+
+    const { primary_keywords = [], secondary_keywords = [], min_keyword_hits = 1 } = rules.identification;
     const lowerDocText = docText.toLowerCase();
-    const hits = rules.identification_keywords.filter(kw => lowerDocText.includes(kw.toLowerCase()));
+
+    const checkKeywords = (kws) => kws.filter(kw => lowerDocText.includes(kw.toLowerCase()));
+
+    const primaryHits = checkKeywords(primary_keywords);
+    const secondaryHits = checkKeywords(secondary_keywords);
+    const totalHits = primaryHits.length + secondaryHits.length;
+
+    // Fail if ANY primary keyword is missing (if primary list is provided)
+    // NOTE: The user prompt implied primary keywords are strong indicators. 
+    // Usually "primary" means MUST be present, or at least one of them.
+    // Let's assume at least ONE primary keyword is required if the list exists, 
+    // OR we just respect min_keyword_hits across the board.
+    // The prompt implementation guidelines say "primary_keywords: []". 
+    // Let's stick to min_keyword_hits as the gate for now, but prioritize primary in logic if needed.
+
+    // Strictness: If primary keywords exist, at least ONE must be found? 
+    // The schema doesn't explicitly say "all primary required", but "identificarion" implies it.
+    // Let's use min_keyword_hits as the main driver.
+
+    const missingPrimary = primary_keywords.filter(kw => !lowerDocText.includes(kw.toLowerCase()));
+
+    const passed = totalHits >= min_keyword_hits;
+
     return {
-        passed: hits.length > 0,
-        hits: hits,
-        missing: rules.identification_keywords.filter(kw => !lowerDocText.includes(kw.toLowerCase()))
+        passed,
+        hits: [...primaryHits, ...secondaryHits],
+        missing: missingPrimary.concat(secondary_keywords.filter(kw => !lowerDocText.includes(kw.toLowerCase()))),
+        details: `Found ${totalHits} keywords (Min required: ${min_keyword_hits})`
     };
 }
 
@@ -57,113 +84,131 @@ function runStructuralValidation(docText, rules) {
 
 function runFieldValidation(docText, userInput, rules) {
     const issues = [];
-    const matches = []; // Capture context for AI analysis
-    if (!rules.field_rules) return { issues, matches };
+    const matches = [];
+    if (!rules.fields) return { issues, matches };
 
-
-    for (const [field, rule] of Object.entries(rules.field_rules)) {
+    for (const [field, rule] of Object.entries(rules.fields)) {
         const userValue = userInput[field];
+
+        // 1. Check Requirement
+        if (rule.required && !userValue) {
+            // It's missing in input, but is it required? Yes.
+            // However, if the user didn't provide it, we can't verify it.
+            // Usually we skip if input is missing unless we are validating input completeness too.
+            // Let's skip verification if user didn't provide it, but maybe log a warning?
+            continue;
+        }
 
         if (!userValue) continue;
 
-        // Check 1: Equality to a fixed rule value
-        if (rule.equals) {
-            if (String(userValue) !== String(rule.equals)) {
-                issues.push(`Field '${field}': Value ${userValue} does not match required ${rule.equals}`);
+        // 2. Regex Check
+        if (rule.regex) {
+            const regex = new RegExp(rule.regex);
+            if (!regex.test(userValue)) {
+                issues.push(`Field '${field}': Value '${userValue}' does not match format ${rule.regex}`);
             }
         }
 
-        // Check 4: Exact Match in Document (Critical & Robust)
-        if (rule.exact_match === true) {
+        // 3. Match Strategy
+        if (rule.match_strategy === "STRICT") {
             const hasDigits = /\d/.test(userValue);
             const normalize = (str) => String(str).replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 
             if (hasDigits) {
-                // Strategy A: Compact Matching (Numbers)
+                // Strict Numeric/Alphanumeric
                 const normalizedDoc = normalize(docText);
                 const normalizedUserVal = normalize(userValue);
-
-                if (normalizedUserVal.length < 3) {
-                    issues.push(`Field '${field}': Value too short for verification (${userValue})`);
-                } else if (!normalizedDoc.includes(normalizedUserVal)) {
-                    issues.push(`Field '${field}' mismatch: '${userValue}' not found in document.`);
+                if (!normalizedDoc.includes(normalizedUserVal)) {
+                    issues.push(`Field '${field}' mismatch: '${userValue}' not found in document (STRICT).`);
                 }
             } else {
-                // Strategy B: Token Matching (Names) + Context Capture
+                // Strict Text
                 const safeUserVal = userValue.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-                // Regex for Word Boundary to avoid "Vinod" matching "VinodKumar"
                 const regex = new RegExp(`\\b${safeUserVal}\\b`, "i");
-                const match = docText.match(regex);
-
-                if (!match) {
-                    // Fallback: Try "Space Normalized" match if raw fails
-                    const spaceNormDoc = docText.replace(/\s+/g, " ");
-                    if (!new RegExp(safeUserVal.replace(/\s+/g, " "), "i").test(spaceNormDoc)) {
-                        issues.push(`Field '${field}' mismatch: '${userValue}' not found in document.`);
+                if (!regex.test(docText)) {
+                    // Fallback check: ignore spaces
+                    const spaceNormDoc = docText.replace(/\s+/g, "");
+                    const spaceNormVal = userValue.replace(/\s+/g, "");
+                    if (!new RegExp(spaceNormVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i").test(spaceNormDoc)) {
+                        issues.push(`Field '${field}' mismatch: '${userValue}' not found in document (STRICT).`);
                     }
-                } else {
-                    // Match FOUND - Now enforce STRICT COMPLETENESS
-                    const matchIndex = match.index;
-                    const matchEnd = matchIndex + match[0].length;
-
-                    // 1. PREFIX CHECK (Head) - Ensure we didn't match just the surname
-                    const textBefore = docText.substring(0, matchIndex).split(/[\n\r]/).pop();
-                    const SIGNIFICANT_HEAD_REGEX = /[a-zA-Z0-9]+[\s-]*$/; // Ends with word chars
-
-                    let isPartial = false;
-                    const matchHead = textBefore.match(SIGNIFICANT_HEAD_REGEX);
-
-                    if (matchHead) {
-                        const headWord = matchHead[0].trim();
-                        // Common labels (Name:, Father's Name:, etc)
-                        const HEAD_IGNORE_LIST = ["Name", "Father", "Mother", "Husband", "Wife", "Address", "Ref", "ID", "No", "DOB", "Gender", ":"];
-
-                        const cleanHead = headWord.replace(/[^a-zA-Z0-9]/g, "");
-                        if (cleanHead.length > 1 && !HEAD_IGNORE_LIST.some(label => cleanHead.toUpperCase() === label.toUpperCase())) {
-                            isPartial = true;
-                            issues.push(`Field '${field}' Partial Match Error: Value '${userValue}' is incomplete. Document has '...${headWord} ${userValue}'`);
-                        }
-                    }
-
-                    // 2. SUFFIX CHECK (Tail) - Look ahead for "More Name" on the same line
-                    const textAfter = docText.substring(matchEnd).split(/[\n\r]/)[0]; // Rest of line
-                    const SIGNIFICANT_TAIL_REGEX = /^\s*[a-zA-Z0-9]+/; // Starts with word characters (ignoring space)
-
-                    // Check if there is a 'tail' that looks like a name part, excluding known labels
-                    // e.g. " Alwani" -> Significant. " DOB:" -> Not significant.
-
-                    const matchTail = textAfter.match(SIGNIFICANT_TAIL_REGEX);
-
-                    if (matchTail) {
-                        const tailWord = matchTail[0].trim();
-                        // Common labels that might follow a name in a single line context (rare in strict fields)
-                        const IGNORE_LIST = ["DOB", "Gender", "Date", "Address", "S/O", "W/O", "Year"];
-
-                        if (!IGNORE_LIST.some(label => tailWord.toUpperCase().startsWith(label.toUpperCase())) && tailWord.length > 1) {
-                            isPartial = true;
-                            const msg = `Field '${field}' Partial Match Error: Value '${userValue}' is incomplete. Document has '${userValue} ${tailWord}...'`;
-                            issues.push(msg);
-                        }
-                    }
-
-                    const start = Math.max(0, match.index - 20);
-                    const end = Math.min(docText.length, match.index + userValue.length + 30);
-                    const context = docText.substring(start, end).replace(/\s+/g, " ");
-                    matches.push({ field, value: userValue, context, isPartial });
                 }
             }
+        } else if (rule.match_strategy === "FLEXIBLE") {
+            // Flexible: Case insensitive, maybe ignore separators
+            const normalize = (str) => String(str).replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+            if (!normalize(docText).includes(normalize(userValue))) {
+                // Even flexible failed
+                issues.push(`Field '${field}' mismatch: '${userValue}' not found (FLEXIBLE).`);
+            }
         }
+        // SEMANTIC is handled by AI later, so we just capture context here if found
+
+        matches.push({ field, value: userValue, strategy: rule.match_strategy });
     }
     return { issues, matches };
 }
 
 /* ... Authenticity Check ... */
 function runAuthenticityCheck(docText, rules) {
-    if (!rules.authenticity_markers) return { score: 0, hits: [] };
+    if (!rules.authenticity) return { score: 0, hits: [] };
+
+    const { required = [], optional = [] } = rules.authenticity;
+    const allMarkers = [...required, ...optional];
+
+    if (allMarkers.length === 0) return { score: 0, hits: [] };
+
     const lowerDocText = docText.toLowerCase();
-    const hits = rules.authenticity_markers.filter(marker => lowerDocText.includes(marker.replace(/_/g, " ").toLowerCase()));
-    return { score: hits.length, hits: hits };
+    const hits = allMarkers.filter(marker => lowerDocText.includes(marker.replace(/_/g, " ").toLowerCase()));
+
+    // Check if all MANDATORY ones are present
+    const missingRequired = required.filter(marker => !lowerDocText.includes(marker.replace(/_/g, " ").toLowerCase()));
+    const passed = missingRequired.length === 0;
+
+    return {
+        score: hits.length,
+        hits: hits,
+        passed,
+        missing_required: missingRequired
+    };
+}
+
+function runIssuingAuthorityCheck(docText, rules) {
+    if (!rules.issuing_authority) return { passed: true, hits: [] };
+
+    const { allowed = [], regex = [], must_be_present = false } = rules.issuing_authority;
+
+    // If not strict, we skip failing but still look for it
+    if (!must_be_present && allowed.length === 0 && regex.length === 0) {
+        return { passed: true, hits: [] };
+    }
+
+    const lowerDocText = docText.toLowerCase();
+    const allowedHits = allowed.filter(auth => lowerDocText.includes(auth.toLowerCase()));
+
+    // Regex checks
+    const regexHits = [];
+    for (const pat of regex) {
+        if (new RegExp(pat, "i").test(docText)) {
+            regexHits.push(pat);
+        }
+    }
+
+    const totalHits = [...allowedHits, ...regexHits];
+    const passed = !must_be_present || totalHits.length > 0;
+
+    return {
+        passed,
+        hits: totalHits,
+        details: passed ? `Authority Found: ${totalHits.join(", ")}` : "No parameters matched issuing authority."
+    };
+}
+
+function runLogicalRules(rules) {
+    if (Array.isArray(rules.logical_rules)) {
+        return rules.logical_rules.join("\n    - ");
+    }
+    return "None";
 }
 
 
@@ -208,10 +253,12 @@ function extractJSON(text) {
 
 async function aiLogicalCheckAndDecision({ docText, userInput, issues, matches, ruleVerificationResult, rules, documentType }) {
 
+    const logicalRulesText = runLogicalRules(rules);
+
     const prompt = `
-    You are a Strict Verification Engine.
+    You are a Super-Intelligent Document Verification Engine.
     
-    TASK: Verify if the User Input is an EXACT MATCH to the Document Content.
+    TASK: Verify if the User Input is an EXACT MATCH to the Document Content AND if Logical Rules are satisfied.
 
     DOCUMENT CONTEXT:
     Type: ${rules ? rules.document_name : documentType}
@@ -222,70 +269,74 @@ async function aiLogicalCheckAndDecision({ docText, userInput, issues, matches, 
     MATCH ANALYSIS:
     ${JSON.stringify(matches, null, 2)}
     
+    AUTHENTICITY & AUTHORITY CHECK:
+    Authenticity Markers: ${JSON.stringify(ruleVerificationResult.authenticity || {}, null, 2)}
+    Issuing Authority: ${JSON.stringify(ruleVerificationResult.authority || {}, null, 2)}
+
+    LOGICAL RULES TO ENFORCE:
+    - ${logicalRulesText}
+
     PRE-COMPUTED VALIDATION ISSUES:
     ${issues.length > 0 ? JSON.stringify(issues) : "NONE (Code confirmed basic strict match)"}
 
     STEPS TO EXECUTE:
-    1. Check "PRE-COMPUTED VALIDATION ISSUES". If "NONE", the code has ALREADY confirmed that the Name/Number matches the document text strictly (checking start and end).
-    2. **VERIFY CONTEXT**: Ensure the match isn't just a substring of a *different* field (e.g. matching father's name instead of applicant).
-    
-    CRITICAL RULES:
-    1. **TRUST CODE CHECK**: If "PRE-COMPUTED VALIDATION ISSUES" is NONE, you should likely PASS, unless you see a blatant context error.
-    2. **FIELD BOUNDARIES**: 
-       - "Vinod Alwani" matches "Name: Vinod Alwani S/O ..." -> PASS.
-       - "S/O", "DOB", "Address" mark the START of a NEW field. They are NOT part of the Name.
-       - Do NOT fail because User Input excludes the Father's Name or Address.
-    3. **NO PARTIALS**: Input "Vinod" vs Doc "Vinod Alwani" -> FAIL.
+    1. **STRICT FIELDS**: If "PRE-COMPUTED VALIDATION ISSUES" has errors, YOU MUST FAIL.
+    2. **LOGICAL CHECKS**: Check dates and cross-field logic from "LOGICAL RULES".
+       - Example: "validity_period MUST COVER application_date".
+       - If logic fails -> FAIL.
+    3. **AUTHORITY**: If Issuing Authority is required but missing -> FAIL/HIGH RISK.
+    4. **CONTEXT**: Ensure matches are semantic (e.g. Name matches name, not father's name).
 
     Output JSON:
     {
       "verdict": "PASS" | "FAIL",
       "risk_score": 0-100,
       "confidence": 0-100,
-      "summary": "Explain the comparison."
+      "summary": "Explain the comparison, logical rule evaluation, and authenticity findings."
     }
     `;
 
-    try {
-        console.log(`🤖 Consulting External AI (${MODEL_NAME})...`);
-        const apiUrl = process.env.POINT;
+    const MAX_RETRIES = 3;
+    let attempts = 0;
 
-        if (!apiUrl) {
-            throw new Error("Missing AI Service URL (POINT) in .env");
+    while (attempts < MAX_RETRIES) {
+        try {
+            console.log(`🤖 Consulting External AI (${MODEL_NAME}) [Attempt ${attempts + 1}]...`);
+            const apiUrl = process.env.POINT;
+
+            if (!apiUrl) throw new Error("Missing AI Service URL (POINT) in .env");
+
+            const response = await fetch(apiUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    model: MODEL_NAME,
+                    prompt: prompt,
+                    stream: false
+                })
+            });
+
+            if (!response.ok) throw new Error(`API Error: ${response.status}`);
+
+            const apiData = await response.json();
+            const result = apiData.response || "";
+
+            let cleanResult = result.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "");
+            cleanResult = cleanResult.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+
+            const data = extractJSON(cleanResult);
+            if (data) return data;
+
+            console.warn("LLM returned invalid JSON, retrying...");
+        } catch (err) {
+            console.error(`AI Attempt ${attempts + 1} Failed:`, err.message);
+            if (attempts === MAX_RETRIES - 1) break;
+            await new Promise(res => setTimeout(res, 1000 * (attempts + 1))); // Exponentialish backoff
         }
-
-        const response = await fetch(apiUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                model: MODEL_NAME,
-                prompt: prompt,
-                stream: false
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`API Error: ${response.status} ${response.statusText}`);
-        }
-
-        const apiData = await response.json();
-        const result = apiData.response || ""; // Ollama API returns 'response' field
-
-
-        let cleanResult = result.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "");
-        cleanResult = cleanResult.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-
-        const data = extractJSON(cleanResult);
-        if (data) {
-            return data;
-        } else {
-            console.warn("LLM did not return Valid JSON. Raw:", cleanResult);
-            return { verdict: "MANUAL_REVIEW", summary: "AI failed to produce structured output.", risk_score: 99 };
-        }
-    } catch (err) {
-        console.error("LLM Error:", err);
-        return { verdict: "MANUAL_REVIEW", summary: "System Error during AI processing.", risk_score: 100 };
+        attempts++;
     }
+
+    return { verdict: "MANUAL_REVIEW", summary: "AI Service Unreachable or Malformed Output after retries.", risk_score: 100 };
 }
 
 
@@ -295,6 +346,7 @@ async function aiLogicalCheckAndDecision({ docText, userInput, issues, matches, 
 async function verify(docText, userInput, documentType) {
     console.log("--- START VERIFICATION ---");
     console.log("Document Type:", documentType);
+    console.log("Document Type (Hex):", Buffer.from(documentType).toString('hex'));
 
     const rules = loadRules(documentType);
     console.log("Rules Loaded:", rules ? "YES" : "NO");
@@ -325,19 +377,29 @@ async function verify(docText, userInput, documentType) {
     const fieldMatches = fieldValidation.matches;
     console.log("Field Issues:", fieldIssues.length);
 
-    // 3. Authenticity
-    const authenticity = rules ? runAuthenticityCheck(docText, rules) : { score: 0, hits: [] };
+    // 3. Authenticity & Authority
+    const authenticity = rules ? runAuthenticityCheck(docText, rules) : { score: 0, hits: [], passed: true, missing_required: [] };
+    const authority = rules ? runIssuingAuthorityCheck(docText, rules) : { passed: true, hits: [] };
 
     let finalDecision;
 
-    // Critical Gate Failure
-    if (!keywordGate.passed && rules) {
+    // Critical Gate Failures
+    if (rules && !keywordGate.passed) {
         console.log("DECISION: Gate Failure");
         finalDecision = {
             verdict: "FAIL",
             risk_score: 100,
             confidence: 100,
-            summary: "Document failed Critical Keyword Gate. Identifying keywords not found."
+            summary: `Document failed Critical Keyword Gate. Found: ${keywordGate.hits.join(", ")}. Missing: ${keywordGate.missing.join(", ")}`
+        };
+    }
+    else if (rules && !authority.passed) {
+        console.log("DECISION: Authority Failure");
+        finalDecision = {
+            verdict: "FAIL",
+            risk_score: 100,
+            confidence: 100,
+            summary: `Document failed Issuing Authority Check. Expected: ${rules.issuing_authority.allowed.join(" or ")}`
         };
     }
     // Field Validation Failure (Fail Fast)
@@ -347,7 +409,7 @@ async function verify(docText, userInput, documentType) {
             verdict: "FAIL",
             risk_score: 100,
             confidence: 100,
-            summary: `Field Validation Failed.found ${fieldIssues.length} issues: ${fieldIssues.join("; ")}`
+            summary: `Field Validation Failed. Verified issues: ${fieldIssues.join("; ")}`
         };
     }
     else {
@@ -357,10 +419,17 @@ async function verify(docText, userInput, documentType) {
             userInput,
             issues: fieldIssues,
             matches: fieldMatches,
-            ruleVerificationResult: { keywordGate, structural, authenticity },
+            ruleVerificationResult: { keywordGate, structural, authenticity, authority },
             rules,
             documentType
         });
+
+        // If Authenticity failed but AI passed, maybe downgrade?
+        if (rules && !authenticity.passed && finalDecision.verdict === "PASS") {
+            finalDecision.summary += ` [WARNING: Missing Authenticity Markers: ${authenticity.missing_required.join(", ")}]`;
+            finalDecision.risk_score = Math.max(finalDecision.risk_score || 0, 50);
+        }
+
         console.log("AI Result:", JSON.stringify(finalDecision));
     }
 
@@ -376,7 +445,9 @@ async function verify(docText, userInput, documentType) {
             keyword_gate: keywordGate,
             structural_check: structural,
             field_validation_issues: fieldIssues,
-            authenticity_markers_detected: authenticity.hits
+            field_validation_issues: fieldIssues,
+            authenticity_check: authenticity,
+            authority_check: authority
         }
     };
 }

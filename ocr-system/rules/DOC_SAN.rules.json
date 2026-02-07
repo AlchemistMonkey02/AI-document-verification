@@ -1,0 +1,50 @@
+{
+    "document_code": "DOC_SAN",
+    "document_name": "Sanstha Aadhaar / Business Registration",
+    "document_domain": "STATE_REGISTRATION",
+    "application_scope": [
+        "ALL"
+    ],
+    "identification": {
+        "primary_keywords": [
+            "SANSTHA AADHAAR NUMBER",
+            "Government of Rajasthan"
+        ],
+        "min_keyword_hits": 2
+    },
+    "issuing_authority": {
+        "allowed": [
+            "Department of Statistics Rajasthan"
+        ],
+        "must_be_present": true
+    },
+    "mandatory_sections": [
+        "enterprise_name",
+        "san_number",
+        "registration_date"
+    ],
+    "fields": {
+        "enterprise_name": {
+            "match_strategy": "STRICT",
+            "required": true
+        },
+        "san_number": {
+            "regex": "\\d{16}",
+            "match_strategy": "STRICT",
+            "required": true
+        },
+        "registration_date": {
+            "date_constraint": "PAST",
+            "data_type": "DATE",
+            "required": true
+        }
+    },
+    "authenticity": {
+        "required": [
+            "government_emblem",
+            "nic_reference"
+        ]
+    },
+    "risk_weight": 60,
+    "verification_level": "HIGH"
+}

@@ -20,6 +20,7 @@ reproduce_verification.js
 reproduction.js
 extract_debug.js
 debug_env.js
+fix_env.js
 create_hindi_image.js
 check_hindi.js
 input_*.json
