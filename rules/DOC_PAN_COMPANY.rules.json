@@ -1,0 +1,44 @@
+{
+    "document_code": "DOC_PAN_COMPANY",
+    "document_name": "PAN Card (Company)",
+    "document_domain": "TAX",
+    "application_scope": [
+        "ALL"
+    ],
+    "identification": {
+        "primary_keywords": [
+            "Income Tax Department",
+            "Permanent Account Number"
+        ],
+        "min_keyword_hits": 2
+    },
+    "issuing_authority": {
+        "allowed": [
+            "Income Tax Department"
+        ],
+        "must_be_present": true
+    },
+    "mandatory_sections": [
+        "company_name",
+        "pan_number"
+    ],
+    "fields": {
+        "pan_number": {
+            "regex": "[A-Z]{5}[0-9]{4}[A-Z]",
+            "match_strategy": "STRICT",
+            "required": true
+        },
+        "company_name": {
+            "match_strategy": "STRICT",
+            "required": true
+        }
+    },
+    "authenticity": {
+        "required": [
+            "qr_code",
+            "govt_emblem"
+        ]
+    },
+    "risk_weight": 85,
+    "verification_level": "VERY_HIGH"
+}

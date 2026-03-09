@@ -1,0 +1,34 @@
+# Environment Variables
+.env
+
+# Dependencies
+node_modules/
+
+# Uploads and Temporary Files
+uploads/
+temp_docx_extract/
+output/
+*.txt
+*.log
+
+# Test Scripts
+test_*.js
+*_test.js
+test-*.js
+verify_direct.js
+reproduce_verification.js
+reproduction.js
+extract_debug.js
+debug_env.js
+fix_env.js
+create_hindi_image.js
+check_hindi.js
+input_*.json
+test_*.txt
+test_verify.bat
+verify_aadhaar.bat
+
+# Samples and Assets
+samples/
+*.md
+*.png

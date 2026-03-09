@@ -1,0 +1,41 @@
+{
+    "document_code": "DOC_STARTUP",
+    "document_name": "Startup Recognition Certificate",
+    "document_domain": "STARTUP",
+    "application_scope": [
+        "ALL"
+    ],
+    "identification": {
+        "primary_keywords": [
+            "Certificate of Recognition",
+            "Startup India"
+        ],
+        "min_keyword_hits": 2
+    },
+    "issuing_authority": {
+        "allowed": [
+            "DPIIT"
+        ],
+        "must_be_present": true
+    },
+    "mandatory_sections": [
+        "entity_name",
+        "certificate_number",
+        "valid_upto"
+    ],
+    "fields": {
+        "entity_name": {
+            "match_strategy": "STRICT",
+            "required": true
+        },
+        "certificate_number": {
+            "match_strategy": "STRICT",
+            "required": true
+        }
+    },
+    "logical_rules": [
+        "valid_upto MUST BE FUTURE_DATE"
+    ],
+    "risk_weight": 50,
+    "verification_level": "HIGH"
+}

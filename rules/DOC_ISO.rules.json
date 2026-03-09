@@ -1,0 +1,48 @@
+{
+    "document_code": "DOC_ISO",
+    "document_name": "ISO Certification",
+    "document_domain": "QUALITY",
+    "application_scope": [
+        "ALL"
+    ],
+    "identification": {
+        "primary_keywords": [
+            "ISO",
+            "Certificate of Compliance"
+        ],
+        "min_keyword_hits": 1
+    },
+    "issuing_authority": {
+        "allowed": [
+            "Accredited Certification Body"
+        ],
+        "must_be_present": false
+    },
+    "mandatory_sections": [
+        "organization_name",
+        "iso_standard",
+        "validity_period"
+    ],
+    "fields": {
+        "organization_name": {
+            "match_strategy": "STRICT",
+            "required": true
+        },
+        "iso_standard": {
+            "regex": "ISO\\s\\d{4,5}:\\d{4}",
+            "match_strategy": "STRICT",
+            "required": true
+        }
+    },
+    "logical_rules": [
+        "validity_period MUST BE CURRENT"
+    ],
+    "authenticity": {
+        "required": [
+            "certification_body_logo",
+            "qr_code"
+        ]
+    },
+    "risk_weight": 40,
+    "verification_level": "MEDIUM"
+}

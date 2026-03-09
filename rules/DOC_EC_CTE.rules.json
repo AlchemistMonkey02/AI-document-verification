@@ -1,0 +1,68 @@
+{
+    "document_code": "DOC_EC_CTE",
+    "document_name": "Consent to Establish / Operate / Environmental Clearance",
+    "document_domain": "ENVIRONMENT",
+    "application_scope": [
+        "INDUSTRY"
+    ],
+    "identification": {
+        "primary_keywords": [
+            "Consent",
+            "Environmental Clearance"
+        ],
+        "secondary_keywords": [
+            "Air (Prevention and Control of Pollution) Act",
+            "Water (Prevention and Control of Pollution) Act",
+            "Consent Order"
+        ],
+        "min_keyword_hits": 2
+    },
+    "issuing_authority": {
+        "allowed": [
+            "State Pollution Control Board",
+            "SPCB"
+        ],
+        "regex": [
+            "Pollution Control Board"
+        ],
+        "must_be_present": true
+    },
+    "mandatory_sections": [
+        "project_name",
+        "consent_number",
+        "issue_date",
+        "validity_period"
+    ],
+    "fields": {
+        "project_name": {
+            "required": true,
+            "match_strategy": "SEMANTIC",
+            "cross_match": "application.project_name"
+        },
+        "consent_number": {
+            "required": true,
+            "regex": "[A-Z0-9/-]{6,}",
+            "match_strategy": "FLEXIBLE"
+        },
+        "issue_date": {
+            "required": true,
+            "data_type": "DATE",
+            "date_constraint": "PAST"
+        }
+    },
+    "logical_rules": [
+        "validity_period MUST COVER application_date"
+    ],
+    "authenticity": {
+        "required": [
+            "official_letterhead",
+            "authority_seal"
+        ],
+        "optional": [
+            "qr_code",
+            "digital_signature"
+        ]
+    },
+    "risk_weight": 90,
+    "verification_level": "VERY_HIGH"
+}

@@ -1,0 +1,18 @@
+node_modules
+npm-debug.log
+Dockerfile
+.dockerignore
+.git
+.gitignore
+README.md
+# Ignore uploads and output to keep the image clean and stateless
+uploads/*
+output/*
+# Keep the directories themselves
+!uploads/.gitkeep
+!output/.gitkeep
+# Ignore large model files if they are not strictly needed in the image (or keep them if they are)
+# verification: keeping traineddata files as they are needed for Tesseract
+# Ignore temporary test files
+test*.js
+temp_docx_extract
