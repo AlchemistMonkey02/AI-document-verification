@@ -363,21 +363,22 @@ async function aiLogicalCheckAndDecision({ docText, userInput, issues, matches, 
     }
 
     [SUMMARY FORMAT]
-    - If PASSED: Start with 'Your document is valid because [Details from OCR]'. List Project Name, IDs, and Dates found.
-    - If FAILED: First provide a summary of the document's actual content. Then explicitly state 'Your document and applications details do not matched' and explain the specific mismatch.
+    - If PASSED: Summarize the document and state 'Your document is valid because [Details]'. List detected entities like names, IDs, and dates.
+    - If FAILED: Honestly describe the document content, then state 'Your document and applications details do not matched' and explain the specific mismatch found.
+    - NEVER use placeholders like [PROJECT_NAME] or [VALUE_IN_OCR] in your final summary. Replace them with ACTUAL text from the OCR or User Input.
     - NEVER mention 'keywords' or 'matching keywords'.
 
-        Output JSON:
+    Output JSON Format:
     {
       "verdict": "PASS" | "FAIL",
       "risk_score": 0-100,
       "confidence": 0-100,
-      "summary": "string (Follow [SUMMARY FORMAT] and [EXAMPLES] above)",
+      "summary": "String explanation (must be specific to this document, no placeholders)",
       "document_data": {
         "name": "string",
         "id_number": "string",
-        "expiry_date": "string (if applicable)",
-        "other_key_details": "string"
+        "date": "string",
+        "other_details": "string"
       }
     }
     `;
@@ -509,9 +510,26 @@ async function verify(docText, userInput, documentType) {
         authenticityWarning = `[WARNING: Missing Authenticity Markers: ${authenticity.missing_required.join(", ")}]`;
     }
 
+    // 4. Final Summary Construction
+    // Priority: 1. AI Reasoning, 2. Dynamic Summary (fallback)
     const dynamicSummary = buildDynamicSummary(finalDecision.verdict, documentData, fieldIssues, authenticityWarning);
 
-    finalDecision.summary = dynamicSummary;
+    // Use AI summary if it's substantial (e.g., > 40 chars), otherwise fallback to dynamic summary
+    const aiSummary = finalDecision.summary || "";
+    const isAiSummaryValid = aiSummary.length > 40 && !aiSummary.includes("AI Service Unreachable");
+
+    if (isAiSummaryValid) {
+        console.log("Using AI-generated Reasoning for final summary.");
+        // Append authenticity warning if needed since AI might miss it
+        if (authenticityWarning && !aiSummary.includes(authenticityWarning)) {
+            finalDecision.summary = aiSummary.trim() + " " + authenticityWarning;
+        } else {
+            finalDecision.summary = aiSummary;
+        }
+    } else {
+        console.log("Using Codified Dynamic Summary (AI summary was missing or too short).");
+        finalDecision.summary = dynamicSummary;
+    }
     finalDecision.document_data = documentData;
 
     console.log("Final Decision Object:", JSON.stringify(finalDecision));

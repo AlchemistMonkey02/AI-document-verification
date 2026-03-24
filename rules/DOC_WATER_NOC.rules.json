@@ -1,0 +1,53 @@
+{
+    "document_code": "DOC_WATER_NOC",
+    "document_name": "Water NOC / Availability Certificate",
+    "document_domain": "UTILITIES",
+    "application_scope": [
+        "ALL"
+    ],
+    "identification": {
+        "primary_keywords": [
+            "WATER CERTIFICATE",
+            "WATER SUPPLY"
+        ],
+        "secondary_keywords": [
+            "MUNICIPAL CORPORATION",
+            "AVAILABILITY"
+        ],
+        "min_keyword_hits": 2
+    },
+    "issuing_authority": {
+        "allowed": [
+            "MUNICIPAL CORPORATION",
+            "Water Supply Agency"
+        ],
+        "must_be_present": true
+    },
+    "mandatory_sections": [
+        "certificate_number",
+        "date",
+        "project_name"
+    ],
+    "fields": {
+        "project_name": {
+            "required": true,
+            "match_strategy": "SEMANTIC"
+        },
+        "certificate_number": {
+            "required": true,
+            "match_strategy": "STRICT"
+        },
+        "date": {
+            "required": true,
+            "data_type": "DATE"
+        }
+    },
+    "authenticity": {
+        "required": [
+            "Authority Seal",
+            "Signatory"
+        ]
+    },
+    "risk_weight": 70,
+    "verification_level": "HIGH"
+}
