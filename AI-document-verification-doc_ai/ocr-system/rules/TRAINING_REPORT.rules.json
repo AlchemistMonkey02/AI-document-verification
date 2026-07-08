@@ -1,0 +1,27 @@
+{
+    "document_code": "TRAINING_REPORT",
+    "document_name": "Training Report and Calculation",
+    "document_domain": "TRAINING_FINANCE",
+    "identification": {
+        "primary_keywords": [
+            "Completion Certificate Calculation & TMP Portal"
+        ],
+        "min_keyword_hits": 1
+    },
+    "mandatory_sections": [
+        "Sr. No.",
+        "Block",
+        "Topic",
+        "Type of Training",
+        "Total No. Trainings",
+        "No. of Participants",
+        "Rate",
+        "Total Amount",
+        "Photos During Training:"
+    ],
+    "logical_rules": [
+        "for_each_row_in_table: No. of Participants * Rate MUST EQUAL Total Amount",
+        "total_row_at_bottom MUST SUM UP correctly"
+    ],
+    "verification_level": "HIGH"
+}

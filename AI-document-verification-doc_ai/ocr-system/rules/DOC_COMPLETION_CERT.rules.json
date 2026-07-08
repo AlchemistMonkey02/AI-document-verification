@@ -1,0 +1,34 @@
+{
+    "document_code": "DOC_COMPLETION_CERT",
+    "document_name": "Completion Certificate (District/Block/GP Level)",
+    "document_domain": "OPERATIONS",
+    "identification": {
+        "primary_keywords": [
+            "Completion Certificate",
+            "कार्य पूर्णता प्रमाण पत्र",
+            "पूर्णता प्रमाण पत्र",
+            "Completed",
+            "सफलतापूर्वक",
+            "Date of Completion"
+        ],
+        "min_keyword_hits": 3
+    },
+    "mandatory_sections": [
+        "Work Name",
+        "Completion Date",
+        "Authority Signature"
+    ],
+    "fields": {
+        "completion_date": {
+            "required": false
+        },
+        "level": {
+            "required": false
+        }
+    },
+    "logical_rules": [
+        "document must mention whether it is District, Block, or GP level",
+        "completion date must be present"
+    ],
+    "verification_level": "HIGH"
+}

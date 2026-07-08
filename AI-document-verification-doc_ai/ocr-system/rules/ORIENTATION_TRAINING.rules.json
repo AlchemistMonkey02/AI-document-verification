@@ -1,0 +1,33 @@
+{
+    "document_code": "ORIENTATION_TRAINING",
+    "document_name": "Orientation Training of BPRC, BPMU Staff",
+    "document_domain": "TRAINING_CERTIFICATE",
+    "identification": {
+        "primary_keywords": [
+            "Orientation Training of BPRC, BPMU Staff",
+            "प्रशिक्षण पूर्णता प्रमाण पत्र"
+        ],
+        "min_keyword_hits": 1
+    },
+    "issuing_authority": {
+        "allowed": [
+            "विकास अधिकारी"
+        ],
+        "must_be_present": true
+    },
+    "mandatory_sections": [
+        "प्रशिक्षण का नाम",
+        "ब्लॉक स्तरीय / जिला स्तरीय",
+        "सत्यापन अधिकारी के हस्ताक्षर मयमोहर"
+    ],
+    "fields": {
+        "organizer": {
+            "expected_value": "यू.पी. इंडस्ट्रियल कंसलटेंट्स लिमिटेड लखनऊ",
+            "required": true
+        }
+    },
+    "logical_rules": [
+        "total_participants ('प्रतिभागियों की संख्या') MUST EXACTLY MATCH sum_of_participants_in_table"
+    ],
+    "verification_level": "HIGH"
+}

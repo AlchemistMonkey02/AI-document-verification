@@ -1,0 +1,35 @@
+{
+    "document_code": "DOC_ATTENDANCE",
+    "document_name": "Attendance Record (District/Block/GP Level)",
+    "document_domain": "OPERATIONS",
+    "identification": {
+        "primary_keywords": [
+            "Attendance",
+            "उपस्थिति",
+            "Muster Roll",
+            "Signature",
+            "Date",
+            "दिनांक"
+        ],
+        "min_keyword_hits": 3
+    },
+    "issuing_authority": {
+        "allowed": ["District", "Block", "Gram Panchayat", "GP", "जिला", "ब्लॉक", "ग्राम पंचायत"],
+        "must_be_present": false
+    },
+    "mandatory_sections": [
+        "Date",
+        "Name",
+        "Signature",
+        "Level"
+    ],
+    "fields": {
+        "level": {
+            "required": false
+        }
+    },
+    "logical_rules": [
+        "document must mention whether it is District, Block, or GP level"
+    ],
+    "verification_level": "HIGH"
+}

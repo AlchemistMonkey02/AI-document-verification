@@ -1,0 +1,17 @@
+{
+  "name": "ai-document-verification-doc_ai",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "mammoth": "^1.12.0",
+    "openai": "^6.45.0",
+    "pdf-parse": "^2.4.5"
+  }
+}

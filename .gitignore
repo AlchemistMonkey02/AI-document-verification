@@ -1,0 +1,8 @@
+node_modules/
+*.jpg
+*.jpeg
+*.png
+*.pdf
+*.docx
+*.traineddata
+test_*.py

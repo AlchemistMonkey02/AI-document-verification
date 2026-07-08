@@ -1,0 +1,34 @@
+{
+    "document_code": "DOC_WORK_ORDER",
+    "document_name": "Work Order (District/Block/GP Level)",
+    "document_domain": "OPERATIONS",
+    "identification": {
+        "primary_keywords": [
+            "Work Order",
+            "कार्यादेश",
+            "कार्य आदेश",
+            "Sanction",
+            "Amount",
+            "स्वीकृति"
+        ],
+        "min_keyword_hits": 3
+    },
+    "mandatory_sections": [
+        "Order Number",
+        "Date",
+        "Amount",
+        "Authority"
+    ],
+    "fields": {
+        "order_number": {
+            "required": false
+        },
+        "level": {
+            "required": false
+        }
+    },
+    "logical_rules": [
+        "document must mention whether it is District, Block, or GP level"
+    ],
+    "verification_level": "HIGH"
+}
