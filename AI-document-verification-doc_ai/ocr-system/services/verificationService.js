@@ -4,7 +4,7 @@ const path = require("path");
 
 
 // Configuration
-const MODEL_NAME = "gemma3:1b";
+const MODEL_NAME = "qwen3:4b";
 const RULES_DIR = path.join(__dirname, "../rules");
 
 /* ---------------- HELPERS ---------------- */

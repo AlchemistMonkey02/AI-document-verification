@@ -17,3 +17,5 @@ echo - OCR: POST http://localhost:3000/ocr
 echo.
 node app.js
 pause
+
+

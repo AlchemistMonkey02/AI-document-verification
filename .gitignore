@@ -6,3 +6,7 @@ node_modules/
 *.docx
 *.traineddata
 test_*.py
+*.tar
+uploads/
+output/
+ilovepdf_split/
