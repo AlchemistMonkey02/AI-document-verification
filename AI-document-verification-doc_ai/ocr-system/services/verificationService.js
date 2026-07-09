@@ -151,12 +151,12 @@ function runFieldValidation(docText, userInput, rules) {
 
 /* ... Authenticity Check ... */
 function runAuthenticityCheck(docText, rules) {
-    if (!rules.authenticity) return { score: 0, hits: [] };
+    if (!rules.authenticity) return { score: 0, hits: [], passed: true, missing_required: [] };
 
     const { required = [], optional = [] } = rules.authenticity;
     const allMarkers = [...required, ...optional];
 
-    if (allMarkers.length === 0) return { score: 0, hits: [] };
+    if (allMarkers.length === 0) return { score: 0, hits: [], passed: true, missing_required: [] };
 
     const lowerDocText = docText.toLowerCase();
     const hits = allMarkers.filter(marker => lowerDocText.includes(marker.replace(/_/g, " ").toLowerCase()));
@@ -302,25 +302,20 @@ async function aiLogicalCheckAndDecision({ docText, userInput, issues, matches, 
     while (attempts < MAX_RETRIES) {
         try {
             console.log(`🤖 Consulting External AI (${MODEL_NAME}) [Attempt ${attempts + 1}]...`);
-            const apiUrl = process.env.POINT;
-
-            if (!apiUrl) throw new Error("Missing AI Service URL (POINT) in .env");
-
-            const response = await fetch(apiUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    model: MODEL_NAME,
-                    prompt: prompt,
-                    stream: false
-                })
+            const { OpenAI } = require('openai');
+            const client = new OpenAI({
+                baseURL: 'https://ai.geoplanetsolution.in/v1',
+                apiKey: 'ollama',
             });
 
-            if (!response.ok) throw new Error(`API Error: ${response.status}`);
+            const response = await client.chat.completions.create({
+                model: MODEL_NAME,
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0.1
+            });
 
-            const apiData = await response.json();
-            const result = apiData.response || "";
-
+            const result = response.choices[0].message.content || "";
+            
             let cleanResult = result.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "");
             cleanResult = cleanResult.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
 
@@ -405,7 +400,7 @@ async function verify(docText, userInput, documentType) {
             verdict: "FAIL",
             risk_score: 100,
             confidence: 100,
-            summary: `Document failed Issuing Authority Check. Expected: ${rules.issuing_authority.allowed.join(" or ")}`
+            summary: `Document failed Issuing Authority Check. Expected: ${(rules.issuing_authority.allowed || []).join(" or ")}`
         };
     }
     // Field Validation Failure (Fail Fast)
@@ -419,24 +414,36 @@ async function verify(docText, userInput, documentType) {
         };
     }
     else {
-        console.log("DECISION: Calling AI...");
-        finalDecision = await aiLogicalCheckAndDecision({
-            docText,
-            userInput,
-            issues: fieldIssues,
-            matches: fieldMatches,
-            ruleVerificationResult: { keywordGate, structural, authenticity, authority },
-            rules,
-            documentType
-        });
+        const noLogicalRules = !rules || !rules.logical_rules || rules.logical_rules.length === 0;
+        
+        if (noLogicalRules) {
+            console.log("DECISION: Fast-Track PASS (Skipping AI)");
+            finalDecision = {
+                verdict: "PASS",
+                risk_score: 0,
+                confidence: 100,
+                summary: "Document successfully matched basic rule criteria. No complex logical validation required."
+            };
+        } else {
+            console.log("DECISION: Calling AI...");
+            finalDecision = await aiLogicalCheckAndDecision({
+                docText,
+                userInput,
+                issues: fieldIssues,
+                matches: fieldMatches,
+                ruleVerificationResult: { keywordGate, structural, authenticity, authority },
+                rules,
+                documentType
+            });
 
-        // If Authenticity failed but AI passed, maybe downgrade?
-        if (rules && !authenticity.passed && finalDecision.verdict === "PASS") {
-            finalDecision.summary += ` [WARNING: Missing Authenticity Markers: ${authenticity.missing_required.join(", ")}]`;
-            finalDecision.risk_score = Math.max(finalDecision.risk_score || 0, 50);
+            // If Authenticity failed but AI passed, maybe downgrade?
+            if (rules && !authenticity.passed && finalDecision.verdict === "PASS") {
+                finalDecision.summary += ` [WARNING: Missing Authenticity Markers: ${authenticity.missing_required.join(", ")}]`;
+                finalDecision.risk_score = Math.max(finalDecision.risk_score || 0, 50);
+            }
+
+            console.log("AI Result:", JSON.stringify(finalDecision));
         }
-
-        console.log("AI Result:", JSON.stringify(finalDecision));
     }
 
     // Standardize Verdict to PASS/FAIL if AI returns ACCEPT/REJECT
