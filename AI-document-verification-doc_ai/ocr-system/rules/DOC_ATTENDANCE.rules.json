@@ -7,11 +7,12 @@
             "Attendance",
             "उपस्थिति",
             "Muster Roll",
+            "Attendance Sheet",
             "Signature",
             "Date",
             "दिनांक"
         ],
-        "min_keyword_hits": 3
+        "min_keyword_hits": 1
     },
     "issuing_authority": {
         "allowed": ["District", "Block", "Gram Panchayat", "GP", "जिला", "ब्लॉक", "ग्राम पंचायत"],
@@ -20,8 +21,7 @@
     "mandatory_sections": [
         "Date",
         "Name",
-        "Signature",
-        "Level"
+        "Signature"
     ],
     "fields": {
         "level": {
@@ -29,7 +29,7 @@
         }
     },
     "logical_rules": [
-        "document must mention whether it is District, Block, or GP level"
+        "document must mention date and signatures or attendance records"
     ],
     "verification_level": "HIGH"
 }

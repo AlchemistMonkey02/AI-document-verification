@@ -5,13 +5,15 @@
     "identification": {
         "primary_keywords": [
             "Completion Certificate",
+            "Certificate of Completion",
             "कार्य पूर्णता प्रमाण पत्र",
+            "प्रशिक्षण पूर्णता प्रमाण पत्र",
             "पूर्णता प्रमाण पत्र",
             "Completed",
             "सफलतापूर्वक",
             "Date of Completion"
         ],
-        "min_keyword_hits": 3
+        "min_keyword_hits": 1
     },
     "mandatory_sections": [
         "Work Name",

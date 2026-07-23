@@ -1,7 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-// const { execSync } = require("child_process"); // Removed for API usage
-
+const runCrossChecks = require("./crossCheckService");
 
 // Configuration
 const MODEL_NAME = "qwen3:4b";
@@ -13,37 +12,170 @@ function normalize(text) {
     return text.replace(/\s+/g, " ").trim();
 }
 
-function loadRules(documentType) {
-    let filename = `${documentType}.rules.json`;
-
-    // Legacy Mapping
-    const legacyMap = {
-        "AADHAAR": "DOC_AADHAAR.rules.json",
-        "PAN": "DOC_PAN_COMPANY.rules.json", // Assuming PAN Company for now, or need generic PAN?
-        // Add other legacy maps if known
-        "EC": "DOC_EC_CTE.rules.json",
-        "CTE": "DOC_EC_CTE.rules.json"
+function resolveDocumentCode(slugOrCode) {
+    if (!slugOrCode) return null;
+    const clean = slugOrCode.trim().toLowerCase();
+    
+    const slugMap = {
+        "attendance": "DOC_ATTENDANCE",
+        "completion-certificate": "DOC_COMPLETION_CERT",
+        "completion": "DOC_COMPLETION_CERT",
+        "work-order": "DOC_WORK_ORDER",
+        "training-report": "TRAINING_REPORT",
+        "orientation-training": "ORIENTATION_TRAINING",
+        "pdi-registration": "PDI_REGISTRATION",
+        "bpdp": "PRIORITIZATION_BPDP",
+        "prioritization-bpdp": "PRIORITIZATION_BPDP",
+        "gpdp": "PRIORITIZATION_GPDP",
+        "prioritization-gpdp": "PRIORITIZATION_GPDP",
+        "empower-wer": "EMPOWER_WER",
+        "e-service-delivery": "E_SERVICE_DELIVERY",
+        "thematic-sankalp": "THEMATIC_SANKALP",
+        "tot-osr": "TOT_OSR",
+        "tot-wer": "TOT_WER",
+        "training-pai-npa": "TRAINING_PAI_NPA",
+        "training-sathin": "TRAINING_SATHIN",
+        "vdo-training": "VDO_TRAINING",
+        "aadhaar": "DOC_AADHAAR",
+        "pan": "DOC_PAN_COMPANY",
+        "ec": "DOC_EC_CTE",
+        "cte": "DOC_EC_CTE"
     };
 
-    if (legacyMap[documentType]) {
-        filename = legacyMap[documentType];
+    if (slugMap[clean]) return slugMap[clean];
+
+    let formatted = slugOrCode.trim().replace(/-/g, "_").toUpperCase();
+    if (!formatted.startsWith("DOC_") && ["ATTENDANCE", "COMPLETION_CERT", "WORK_ORDER", "EC_CTE", "AADHAAR", "PAN_COMPANY"].includes(formatted)) {
+        formatted = "DOC_" + formatted;
     }
 
+    return formatted;
+}
+
+function loadAllRules() {
+    const rules = [];
     try {
-        const rulesPath = path.join(RULES_DIR, filename);
+        if (fs.existsSync(RULES_DIR)) {
+            const files = fs.readdirSync(RULES_DIR);
+            for (const file of files) {
+                if (file.endsWith('.rules.json')) {
+                    try {
+                        const content = fs.readFileSync(path.join(RULES_DIR, file), 'utf8');
+                        const rule = JSON.parse(content);
+                        const kws = rule.identification ? (rule.identification.primary_keywords || []) : [];
+                        const minHits = rule.identification ? (rule.identification.min_keyword_hits || 0) : 0;
+                        if (kws.length > 0 || minHits > 0) {
+                            rules.push(rule);
+                        }
+                    } catch (e) {
+                        console.error(`Error parsing rule file ${file}:`, e.message);
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.error("Error reading rules directory:", err.message);
+    }
+    return rules;
+}
+
+function loadRules(documentType) {
+    if (!documentType) return null;
+
+    const resolvedCode = resolveDocumentCode(documentType);
+    let filename = `${resolvedCode}.rules.json`;
+
+    try {
+        let rulesPath = path.join(RULES_DIR, filename);
         if (fs.existsSync(rulesPath)) {
             return JSON.parse(fs.readFileSync(rulesPath, "utf-8"));
         }
+
+        const allRules = loadAllRules();
+        const found = allRules.find(r => 
+            (r.document_code && r.document_code.toUpperCase() === resolvedCode.toUpperCase()) ||
+            (r.document_name && r.document_name.toUpperCase() === resolvedCode.toUpperCase())
+        );
+        if (found) return found;
+
     } catch (err) {
-        console.error(`Error loading rules for ${documentType}:`, err);
+        console.error(`Error loading rules for ${documentType}:`, err.message);
     }
     return null;
+}
+
+function autoDetectDocumentType(docText) {
+    const allRules = loadAllRules();
+    let bestMatch = null;
+    let maxHits = 0;
+    let bestGate = null;
+
+    for (const rule of allRules) {
+        const gateResult = runKeywordGate(docText, rule);
+        if (gateResult.passed) {
+            const hitCount = (gateResult.hits || []).length;
+            if (hitCount > maxHits) {
+                maxHits = hitCount;
+                bestMatch = rule;
+                bestGate = gateResult;
+            }
+        }
+    }
+
+    if (bestMatch) {
+        return { matchedRule: bestMatch, keywordGate: bestGate };
+    }
+    return null;
+}
+
+function isCompletionCertificate(docText, rules = null) {
+    if (rules && (rules.document_code === "DOC_COMPLETION_CERT" || (rules.identification && (rules.identification.primary_keywords || []).includes("प्रशिक्षण पूर्णता प्रमाण पत्र")))) {
+        return true;
+    }
+    const certKeywords = [
+        "completion certificate",
+        "certificate of completion",
+        "कार्य पूर्णता प्रमाण पत्र",
+        "प्रशिक्षण पूर्णता प्रमाण पत्र",
+        "पूर्णता प्रमाण पत्र"
+    ];
+    const lower = (docText || "").toLowerCase();
+    return certKeywords.some(kw => lower.includes(kw.toLowerCase()));
+}
+
+function isAttendanceSheet(docText, rules = null) {
+    if (rules && rules.document_code === "DOC_ATTENDANCE") {
+        return true;
+    }
+    const attendanceKeywords = [
+        "attendance",
+        "उपस्थिति",
+        "muster roll",
+        "attendance sheet"
+    ];
+    const lower = (docText || "").toLowerCase();
+    return attendanceKeywords.some(kw => lower.includes(kw.toLowerCase()));
+}
+
+function isWorkOrder(docText, rules = null) {
+    if (rules && rules.document_code === "DOC_WORK_ORDER") {
+        return true;
+    }
+    const workOrderKeywords = [
+        "work order",
+        "कार्यादेश",
+        "कार्य आदेश",
+        "sanction",
+        "स्वीकृति"
+    ];
+    const lower = (docText || "").toLowerCase();
+    return workOrderKeywords.some(kw => lower.includes(kw.toLowerCase()));
 }
 
 /* ---------------- LOGIC ---------------- */
 
 function runKeywordGate(docText, rules) {
-    if (!rules.identification) return { passed: true, hits: [], missing: [] };
+    if (!rules || !rules.identification) return { passed: false, hits: [], missing: [], details: "No identification keywords defined in template." };
 
     const { primary_keywords = [], secondary_keywords = [], min_keyword_hits = 1 } = rules.identification;
     const lowerDocText = docText.toLowerCase();
@@ -54,54 +186,49 @@ function runKeywordGate(docText, rules) {
     const secondaryHits = checkKeywords(secondary_keywords);
     const totalHits = primaryHits.length + secondaryHits.length;
 
-    // Fail if ANY primary keyword is missing (if primary list is provided)
-    // NOTE: The user prompt implied primary keywords are strong indicators. 
-    // Usually "primary" means MUST be present, or at least one of them.
-    // Let's assume at least ONE primary keyword is required if the list exists, 
-    // OR we just respect min_keyword_hits across the board.
-    // The prompt implementation guidelines say "primary_keywords: []". 
-    // Let's stick to min_keyword_hits as the gate for now, but prioritize primary in logic if needed.
-
-    // Strictness: If primary keywords exist, at least ONE must be found? 
-    // The schema doesn't explicitly say "all primary required", but "identificarion" implies it.
-    // Let's use min_keyword_hits as the main driver.
-
     const missingPrimary = primary_keywords.filter(kw => !lowerDocText.includes(kw.toLowerCase()));
 
-    const passed = totalHits >= min_keyword_hits;
+    let passed = totalHits >= min_keyword_hits;
+
+    if (primary_keywords.length > 0 && primaryHits.length === 0 && min_keyword_hits > 0) {
+        passed = false;
+    }
 
     return {
         passed,
         hits: [...primaryHits, ...secondaryHits],
         missing: missingPrimary.concat(secondary_keywords.filter(kw => !lowerDocText.includes(kw.toLowerCase()))),
-        details: `Found ${totalHits} keywords (Min required: ${min_keyword_hits})`
+        details: `Found ${totalHits} keywords (${primaryHits.length} primary, ${secondaryHits.length} secondary). Min required: ${min_keyword_hits}`
     };
 }
 
 function runStructuralValidation(docText, rules) {
-    return { passed: true, details: "Structural validation delegated to AI/Logical phase" };
+    if (!rules || !rules.mandatory_sections) return { passed: true, missing: [] };
+    
+    const lowerDocText = docText.toLowerCase();
+    const missingSections = rules.mandatory_sections.filter(sec => !lowerDocText.includes(sec.toLowerCase()));
+    
+    return {
+        passed: missingSections.length === 0,
+        missing: missingSections,
+        details: missingSections.length === 0 ? "All mandatory sections present" : `Missing mandatory sections: ${missingSections.join(", ")}`
+    };
 }
 
 function runFieldValidation(docText, userInput, rules) {
     const issues = [];
     const matches = [];
-    if (!rules.fields) return { issues, matches };
+    if (!rules || !rules.fields || !userInput) return { issues, matches };
 
     for (const [field, rule] of Object.entries(rules.fields)) {
         const userValue = userInput[field];
 
-        // 1. Check Requirement
         if (rule.required && !userValue) {
-            // It's missing in input, but is it required? Yes.
-            // However, if the user didn't provide it, we can't verify it.
-            // Usually we skip if input is missing unless we are validating input completeness too.
-            // Let's skip verification if user didn't provide it, but maybe log a warning?
             continue;
         }
 
         if (!userValue) continue;
 
-        // 2. Regex Check
         if (rule.regex) {
             const regex = new RegExp(rule.regex);
             if (!regex.test(userValue)) {
@@ -109,24 +236,20 @@ function runFieldValidation(docText, userInput, rules) {
             }
         }
 
-        // 3. Match Strategy
         if (rule.match_strategy === "STRICT") {
             const hasDigits = /\d/.test(userValue);
-            const normalize = (str) => String(str).replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+            const norm = (str) => String(str).replace(/[^a-zA-Z0-9\u0900-\u097F]/g, "").toLowerCase();
 
             if (hasDigits) {
-                // Strict Numeric/Alphanumeric
-                const normalizedDoc = normalize(docText);
-                const normalizedUserVal = normalize(userValue);
+                const normalizedDoc = norm(docText);
+                const normalizedUserVal = norm(userValue);
                 if (!normalizedDoc.includes(normalizedUserVal)) {
                     issues.push(`Field '${field}' mismatch: '${userValue}' not found in document (STRICT).`);
                 }
             } else {
-                // Strict Text
                 const safeUserVal = userValue.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const regex = new RegExp(`\\b${safeUserVal}\\b`, "i");
                 if (!regex.test(docText)) {
-                    // Fallback check: ignore spaces
                     const spaceNormDoc = docText.replace(/\s+/g, "");
                     const spaceNormVal = userValue.replace(/\s+/g, "");
                     if (!new RegExp(spaceNormVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i").test(spaceNormDoc)) {
@@ -135,23 +258,19 @@ function runFieldValidation(docText, userInput, rules) {
                 }
             }
         } else if (rule.match_strategy === "FLEXIBLE") {
-            // Flexible: Case insensitive, maybe ignore separators
-            const normalize = (str) => String(str).replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-            if (!normalize(docText).includes(normalize(userValue))) {
-                // Even flexible failed
+            const norm = (str) => String(str).replace(/[^a-zA-Z0-9\u0900-\u097F]/g, "").toLowerCase();
+            if (!norm(docText).includes(norm(userValue))) {
                 issues.push(`Field '${field}' mismatch: '${userValue}' not found (FLEXIBLE).`);
             }
         }
-        // SEMANTIC is handled by AI later, so we just capture context here if found
 
         matches.push({ field, value: userValue, strategy: rule.match_strategy });
     }
     return { issues, matches };
 }
 
-/* ... Authenticity Check ... */
 function runAuthenticityCheck(docText, rules) {
-    if (!rules.authenticity) return { score: 0, hits: [], passed: true, missing_required: [] };
+    if (!rules || !rules.authenticity) return { score: 0, hits: [], passed: true, missing_required: [] };
 
     const { required = [], optional = [] } = rules.authenticity;
     const allMarkers = [...required, ...optional];
@@ -161,24 +280,22 @@ function runAuthenticityCheck(docText, rules) {
     const lowerDocText = docText.toLowerCase();
     const hits = allMarkers.filter(marker => lowerDocText.includes(marker.replace(/_/g, " ").toLowerCase()));
 
-    // Check if all MANDATORY ones are present
     const missingRequired = required.filter(marker => !lowerDocText.includes(marker.replace(/_/g, " ").toLowerCase()));
     const passed = missingRequired.length === 0;
 
     return {
         score: hits.length,
-        hits: hits,
+        hits,
         passed,
         missing_required: missingRequired
     };
 }
 
 function runIssuingAuthorityCheck(docText, rules) {
-    if (!rules.issuing_authority) return { passed: true, hits: [] };
+    if (!rules || !rules.issuing_authority) return { passed: true, hits: [] };
 
     const { allowed = [], regex = [], must_be_present = false } = rules.issuing_authority;
 
-    // If not strict, we skip failing but still look for it
     if (!must_be_present && allowed.length === 0 && regex.length === 0) {
         return { passed: true, hits: [] };
     }
@@ -186,7 +303,6 @@ function runIssuingAuthorityCheck(docText, rules) {
     const lowerDocText = docText.toLowerCase();
     const allowedHits = allowed.filter(auth => lowerDocText.includes(auth.toLowerCase()));
 
-    // Regex checks
     const regexHits = [];
     for (const pat of regex) {
         if (new RegExp(pat, "i").test(docText)) {
@@ -205,26 +321,21 @@ function runIssuingAuthorityCheck(docText, rules) {
 }
 
 function runLogicalRules(rules) {
-    if (Array.isArray(rules.logical_rules)) {
+    if (rules && Array.isArray(rules.logical_rules)) {
         return rules.logical_rules.join("\n    - ");
     }
     return "None";
 }
 
-
 function extractJSON(text) {
     try {
-        // 1. Try simple regex match (fast)
         const match = text.match(/\{[\s\S]*\}/);
         if (match) {
             try {
                 return JSON.parse(match[0]);
-            } catch (e) {
-                // regex matched too much or malformed, fall through to robust method
-            }
+            } catch (e) {}
         }
 
-        // 2. Robust Brace Counting
         let startIndex = text.indexOf('{');
         if (startIndex === -1) return null;
 
@@ -252,7 +363,6 @@ function extractJSON(text) {
 }
 
 async function aiLogicalCheckAndDecision({ docText, userInput, issues, matches, ruleVerificationResult, rules, documentType }) {
-
     const logicalRulesText = runLogicalRules(rules);
 
     const prompt = `
@@ -282,10 +392,8 @@ async function aiLogicalCheckAndDecision({ docText, userInput, issues, matches, 
     STEPS TO EXECUTE:
     1. **STRICT FIELDS**: If "PRE-COMPUTED VALIDATION ISSUES" has errors, YOU MUST FAIL.
     2. **LOGICAL CHECKS**: Check dates and cross-field logic from "LOGICAL RULES".
-       - Example: "validity_period MUST COVER application_date".
-       - If logic fails -> FAIL.
     3. **AUTHORITY**: If Issuing Authority is required but missing -> FAIL/HIGH RISK.
-    4. **CONTEXT**: Ensure matches are semantic (e.g. Name matches name, not father's name).
+    4. **CONTEXT**: Ensure matches are semantic.
 
     Output JSON:
     {
@@ -326,7 +434,7 @@ async function aiLogicalCheckAndDecision({ docText, userInput, issues, matches, 
         } catch (err) {
             console.error(`AI Attempt ${attempts + 1} Failed:`, err.message);
             if (attempts === MAX_RETRIES - 1) break;
-            await new Promise(res => setTimeout(res, 1000 * (attempts + 1))); // Exponentialish backoff
+            await new Promise(res => setTimeout(res, 1000 * (attempts + 1)));
         }
         attempts++;
     }
@@ -334,87 +442,128 @@ async function aiLogicalCheckAndDecision({ docText, userInput, issues, matches, 
     return { verdict: "MANUAL_REVIEW", summary: "AI Service Unreachable or Malformed Output after retries.", risk_score: 100 };
 }
 
-
-
 /* ---------------- MAIN SERVICE ---------------- */
 
-async function verify(docText, userInput, documentType) {
+async function verify(docText, userInput = {}, documentType = "AUTO") {
     console.log("--- START VERIFICATION ---");
-    console.log("Document Type:", documentType);
-    console.log("Document Type (Hex):", Buffer.from(documentType).toString('hex'));
+    console.log("Input Document Type:", documentType);
 
-    const rules = loadRules(documentType);
-    console.log("Rules Loaded:", rules ? "YES" : "NO");
+    const resolvedCode = resolveDocumentCode(documentType);
+    let rules = null;
+    let keywordGate = { passed: false, hits: [], missing: [], details: "Not evaluated" };
+
+    if (!documentType || documentType.toUpperCase() === "AUTO" || documentType.toUpperCase() === "UNKNOWN") {
+        console.log("Auto-detecting document template via keyword gate...");
+        const autoResult = autoDetectDocumentType(docText);
+        if (autoResult) {
+            rules = autoResult.matchedRule;
+            keywordGate = autoResult.keywordGate;
+            console.log(`Auto-detected document type: ${rules.document_code}`);
+        } else {
+            console.log("DECISION: Auto-detection failed. Uploaded document is fake or unrecognized.");
+            return {
+                status: "FAIL",
+                document_code: "UNKNOWN",
+                is_completion_certificate: false,
+                is_attendance_sheet: false,
+                is_work_order: false,
+                verdict: {
+                    verdict: "FAIL",
+                    risk_score: 100,
+                    confidence: 100,
+                    summary: "Uploaded document is fake or incorrect."
+                },
+                verification_log: {
+                    keyword_gate: {
+                        passed: false,
+                        details: "Uploaded document is fake or incorrect."
+                    }
+                }
+            };
+        }
+    } else {
+        rules = loadRules(resolvedCode);
+    }
+
+    console.log("Rules Loaded:", rules ? `YES (${rules.document_code})` : "NO");
 
     if (!rules) {
-        console.log("DECISION: No Rules Found");
+        console.log("DECISION: No Rules Found for specified document type.");
         return {
             status: "FAIL",
-            document_code: "UNKNOWN",
+            document_code: resolvedCode || "UNKNOWN",
+            is_completion_certificate: false,
+            is_attendance_sheet: false,
+            is_work_order: false,
             verdict: {
                 verdict: "FAIL",
                 risk_score: 100,
                 confidence: 0,
-                summary: `No verification rules found for Document Type: '${documentType}'. Check spelling or supported types.`
+                summary: "Uploaded document is fake or incorrect."
             },
             verification_log: {}
         };
     }
 
-    // 1. Keyword Gate
-    const keywordGate = rules ? runKeywordGate(docText, rules) : { passed: true, hits: [] };
-    console.log("Keyword Gate:", keywordGate.passed);
+    if (!keywordGate.passed && keywordGate.details === "Not evaluated") {
+        keywordGate = runKeywordGate(docText, rules);
+    }
+    console.log("Keyword Gate Passed:", keywordGate.passed);
 
-    // 2. Structural & Field
-    const structural = rules ? runStructuralValidation(docText, rules) : { passed: true };
-    const fieldValidation = rules ? runFieldValidation(docText, userInput, rules) : { issues: [], matches: [] };
+    const structural = runStructuralValidation(docText, rules);
+    const fieldValidation = runFieldValidation(docText, userInput, rules);
     const fieldIssues = fieldValidation.issues;
     const fieldMatches = fieldValidation.matches;
-    console.log("Field Issues:", fieldIssues.length);
 
-    // 3. Authenticity & Authority
-    const authenticity = rules ? runAuthenticityCheck(docText, rules) : { score: 0, hits: [], passed: true, missing_required: [] };
-    const authority = rules ? runIssuingAuthorityCheck(docText, rules) : { passed: true, hits: [] };
+    const crossCheckIssuesContainer = { cross_checks: [] };
+    runCrossChecks(docText, rules, crossCheckIssuesContainer);
+    if (crossCheckIssuesContainer.cross_checks.length > 0) {
+        crossCheckIssuesContainer.cross_checks.forEach(issue => {
+            fieldIssues.push(`[${issue.code}] ${issue.message}`);
+        });
+    }
+
+    console.log("Field Issues Count:", fieldIssues.length);
+
+    const authenticity = runAuthenticityCheck(docText, rules);
+    const authority = runIssuingAuthorityCheck(docText, rules);
 
     let finalDecision;
 
-    // Critical Gate Failures
-    if (rules && !keywordGate.passed) {
-        console.log("DECISION: Gate Failure");
+    if (!keywordGate.passed) {
+        console.log("DECISION: Gate Failure (Keywords Missing)");
         
-        // Remove keyword arrays so we don't leak information to users
         delete keywordGate.hits;
         delete keywordGate.missing;
-        keywordGate.details = "Document verification failed. Invalid document type.";
+        keywordGate.details = "Uploaded document is fake or incorrect.";
 
         finalDecision = {
             verdict: "FAIL",
             risk_score: 100,
             confidence: 100,
-            summary: "Uploaded document is fake or incorrect. Please check and upload the correct document again. Document verification failed."
+            summary: "Uploaded document is fake or incorrect."
         };
     }
-    else if (rules && !authority.passed) {
+    else if (!authority.passed) {
         console.log("DECISION: Authority Failure");
         finalDecision = {
             verdict: "FAIL",
             risk_score: 100,
             confidence: 100,
-            summary: `Document failed Issuing Authority Check. Expected: ${(rules.issuing_authority.allowed || []).join(" or ")}`
+            summary: "Uploaded document is fake or incorrect."
         };
     }
-    // Field Validation Failure (Fail Fast)
     else if (fieldIssues.length > 0) {
         console.log("DECISION: Field Failure");
         finalDecision = {
             verdict: "FAIL",
             risk_score: 100,
             confidence: 100,
-            summary: `Field Validation Failed. Verified issues: ${fieldIssues.join("; ")}`
+            summary: "Uploaded document is fake or incorrect."
         };
     }
     else {
-        const noLogicalRules = !rules || !rules.logical_rules || rules.logical_rules.length === 0;
+        const noLogicalRules = !rules.logical_rules || rules.logical_rules.length === 0;
         
         if (noLogicalRules) {
             console.log("DECISION: Fast-Track PASS (Skipping AI)");
@@ -422,10 +571,10 @@ async function verify(docText, userInput, documentType) {
                 verdict: "PASS",
                 risk_score: 0,
                 confidence: 100,
-                summary: "Document successfully matched basic rule criteria. No complex logical validation required."
+                summary: "Document successfully matched basic rule criteria and keywords. Verification passed."
             };
         } else {
-            console.log("DECISION: Calling AI...");
+            console.log("DECISION: Calling AI for logical check...");
             finalDecision = await aiLogicalCheckAndDecision({
                 docText,
                 userInput,
@@ -433,11 +582,10 @@ async function verify(docText, userInput, documentType) {
                 matches: fieldMatches,
                 ruleVerificationResult: { keywordGate, structural, authenticity, authority },
                 rules,
-                documentType
+                documentType: rules.document_code
             });
 
-            // If Authenticity failed but AI passed, maybe downgrade?
-            if (rules && !authenticity.passed && finalDecision.verdict === "PASS") {
+            if (!authenticity.passed && finalDecision.verdict === "PASS") {
                 finalDecision.summary += ` [WARNING: Missing Authenticity Markers: ${authenticity.missing_required.join(", ")}]`;
                 finalDecision.risk_score = Math.max(finalDecision.risk_score || 0, 50);
             }
@@ -446,18 +594,23 @@ async function verify(docText, userInput, documentType) {
         }
     }
 
-    // Standardize Verdict to PASS/FAIL if AI returns ACCEPT/REJECT
     if (finalDecision.verdict === "ACCEPT") finalDecision.verdict = "PASS";
     if (finalDecision.verdict === "REJECT") finalDecision.verdict = "FAIL";
 
+    const isCert = isCompletionCertificate(docText, rules);
+    const isAtt = isAttendanceSheet(docText, rules);
+    const isWO = isWorkOrder(docText, rules);
+
     return {
         status: finalDecision.verdict,
-        document_code: rules ? rules.document_code : "UNKNOWN",
+        document_code: rules.document_code,
+        is_completion_certificate: isCert && finalDecision.verdict !== "FAIL",
+        is_attendance_sheet: isAtt && finalDecision.verdict !== "FAIL",
+        is_work_order: isWO && finalDecision.verdict !== "FAIL",
         verdict: finalDecision,
         verification_log: {
             keyword_gate: keywordGate,
             structural_check: structural,
-            field_validation_issues: fieldIssues,
             field_validation_issues: fieldIssues,
             authenticity_check: authenticity,
             authority_check: authority
@@ -465,4 +618,98 @@ async function verify(docText, userInput, documentType) {
     };
 }
 
-module.exports = { verify };
+async function verifyCompletionCertificate(docText, userInput = {}) {
+    const certRule = loadRules("DOC_COMPLETION_CERT");
+    const keywordGate = certRule ? runKeywordGate(docText, certRule) : { passed: false };
+    const certMatch = isCompletionCertificate(docText, certRule);
+
+    if (!certMatch || !keywordGate.passed) {
+        return {
+            status: "FAIL",
+            is_completion_certificate: false,
+            document_code: certRule ? certRule.document_code : "UNKNOWN",
+            verdict: {
+                verdict: "FAIL",
+                risk_score: 100,
+                confidence: 100,
+                summary: "Uploaded document is fake or incorrect."
+            },
+            verification_log: {
+                keyword_gate: keywordGate
+            }
+        };
+    }
+
+    const verificationResult = await verify(docText, userInput, "DOC_COMPLETION_CERT");
+    verificationResult.is_completion_certificate = verificationResult.status !== "FAIL";
+    return verificationResult;
+}
+
+async function verifyAttendance(docText, userInput = {}) {
+    const attendanceRule = loadRules("DOC_ATTENDANCE");
+    const keywordGate = attendanceRule ? runKeywordGate(docText, attendanceRule) : { passed: false };
+    const attendanceMatch = isAttendanceSheet(docText, attendanceRule);
+
+    if (!attendanceMatch || !keywordGate.passed) {
+        return {
+            status: "FAIL",
+            is_attendance_sheet: false,
+            document_code: attendanceRule ? attendanceRule.document_code : "UNKNOWN",
+            verdict: {
+                verdict: "FAIL",
+                risk_score: 100,
+                confidence: 100,
+                summary: "Uploaded document is fake or incorrect."
+            },
+            verification_log: {
+                keyword_gate: keywordGate
+            }
+        };
+    }
+
+    const verificationResult = await verify(docText, userInput, "DOC_ATTENDANCE");
+    verificationResult.is_attendance_sheet = verificationResult.status !== "FAIL";
+    return verificationResult;
+}
+
+async function verifyWorkOrder(docText, userInput = {}) {
+    const workOrderRule = loadRules("DOC_WORK_ORDER");
+    const keywordGate = workOrderRule ? runKeywordGate(docText, workOrderRule) : { passed: false };
+    const workOrderMatch = isWorkOrder(docText, workOrderRule);
+
+    if (!workOrderMatch || !keywordGate.passed) {
+        return {
+            status: "FAIL",
+            is_work_order: false,
+            document_code: workOrderRule ? workOrderRule.document_code : "UNKNOWN",
+            verdict: {
+                verdict: "FAIL",
+                risk_score: 100,
+                confidence: 100,
+                summary: "Uploaded document is fake or incorrect."
+            },
+            verification_log: {
+                keyword_gate: keywordGate
+            }
+        };
+    }
+
+    const verificationResult = await verify(docText, userInput, "DOC_WORK_ORDER");
+    verificationResult.is_work_order = verificationResult.status !== "FAIL";
+    return verificationResult;
+}
+
+module.exports = {
+    verify,
+    resolveDocumentCode,
+    loadAllRules,
+    loadRules,
+    autoDetectDocumentType,
+    runKeywordGate,
+    isCompletionCertificate,
+    verifyCompletionCertificate,
+    isAttendanceSheet,
+    verifyAttendance,
+    isWorkOrder,
+    verifyWorkOrder
+};
