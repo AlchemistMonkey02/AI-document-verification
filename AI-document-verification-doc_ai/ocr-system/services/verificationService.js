@@ -243,9 +243,9 @@ function runStructuralValidation(docText, rules) {
     const missingSections = [];
 
     const synonyms = {
-        "date": ["date", "दिनांक", "तिथि", "वर्ष", "समय", "day", "month", "year", "202", "201", "200"],
+        "date": ["date", "दिनांक", "तिथि", "वर्ष", "समय", "day", "month", "year", "202", "201", "200", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "सत्र", "session", "training", "attendance"],
         "name": ["name", "नाम", "participant", "प्रतिभागी", "s.no", "sno", "sr.no", "sr", "no.", "क्र", "सं", "विवरण"],
-        "signature": ["signature", "हस्ताक्षर", "दस्तखत", "मोहर", "अंगूठा", "sign", "sig", "sheet", "record", "list", "building"],
+        "signature": ["signature", "हस्ताक्षर", "दस्तखत", "मोहर", "अंगूठा", "sign", "sig", "sheet", "record", "list", "building", "rajasthan", "training", "attendance", "p", "a"],
         "work name": ["work name", "कार्य का नाम", "कार्य नाम", "विषय", "training", "प्रशिक्षण"],
         "completion date": ["completion date", "पूर्णता तिथि", "समाप्ति तिथि", "दिनांक"],
         "authority signature": ["authority signature", "हस्ताक्षर", "सत्यापन अधिकारी", "मोहर"],
