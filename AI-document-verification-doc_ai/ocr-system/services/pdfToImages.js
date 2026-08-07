@@ -47,11 +47,13 @@ async function pdfToImages(pdfPath) {
         }
 
         // Return path to the first page image for simplicity (or handle multiple)
-        // The user's controller logic seems to process 'page-1.png'
-        const firstPageImage = path.join(opts.out_dir, `${opts.out_prefix}-1.png`);
-        if (!fs.existsSync(firstPageImage)) {
-            throw new Error(`Output image file was not created at absolute path: ${firstPageImage}`);
+        const files = fs.readdirSync(opts.out_dir);
+        const matchingFiles = files.filter(f => f.startsWith(opts.out_prefix) && f.endsWith(".png"));
+        if (matchingFiles.length === 0) {
+            throw new Error(`Output image file was not created. No PNG files starting with prefix "${opts.out_prefix}" found in directory "${opts.out_dir}". Directory contents: ${files.join(", ")}`);
         }
+        matchingFiles.sort();
+        const firstPageImage = path.join(opts.out_dir, matchingFiles[0]);
         return firstPageImage;
     } catch (error) {
         console.error("Error converting PDF to images:", error);
