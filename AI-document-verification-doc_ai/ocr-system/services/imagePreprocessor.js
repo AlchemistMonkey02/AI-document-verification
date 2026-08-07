@@ -17,7 +17,7 @@ async function preprocessImage(imagePath) {
         return output;
     } catch (error) {
         console.error("Error preprocessing image:", error);
-        throw new Error("Failed to preprocess image");
+        throw new Error("Failed to preprocess image: " + error.message);
     }
 }
 

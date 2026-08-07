@@ -49,7 +49,7 @@ async function pdfToImages(pdfPath) {
         return firstPageImage;
     } catch (error) {
         console.error("Error converting PDF to images:", error);
-        throw new Error("Failed to convert PDF to images");
+        throw new Error("Failed to convert PDF to images: " + error.message);
     }
 }
 
