@@ -117,10 +117,15 @@ async function verifyDocument(req, res) {
 
         const documentType = req.params.document_type || req.body.documentType || req.body.document_type || "AUTO";
 
-        const filePath = req.file.path;
-        const text = await extractTextFromFile(filePath);
-
         const result = await verificationService.verify(text, userInput, documentType);
+
+        if (result.status === "FAIL") {
+            return res.status(400).json({
+                error: "Document verification failed. Uploaded document is fake or incorrect.",
+                status: "FAIL",
+                ...result
+            });
+        }
 
         res.json(result);
 
@@ -308,11 +313,11 @@ async function verifyPackage(req, res) {
                 const text = await extractTextFromFile(file.path);
                 const result = await verificationService.verify(text, userInput, "AUTO");
                 
-                if (result.is_completion_certificate || result.document_code === "DOC_COMPLETION_CERT") {
+                if (result.status !== "FAIL" && (result.is_completion_certificate || result.document_code === "DOC_COMPLETION_CERT")) {
                     hasCompletionCertificate = true;
                 }
 
-                if (result.is_attendance_sheet || result.document_code === "DOC_ATTENDANCE") {
+                if (result.status !== "FAIL" && (result.is_attendance_sheet || result.document_code === "DOC_ATTENDANCE")) {
                     hasAttendanceSheet = true;
                 }
 

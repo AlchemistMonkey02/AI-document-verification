@@ -8,9 +8,15 @@
             "उपस्थिति",
             "Muster Roll",
             "Attendance Sheet",
-            "Signature",
-            "Date",
-            "दिनांक"
+            "Training Attendance",
+            "Training Attendance Sheet",
+            "Capacity Building and Training Attendance Sheet"
+        ],
+        "secondary_keywords": [
+            "Capacity Building",
+            "Rajasthan",
+            "Participant",
+            "प्रतिभागी"
         ],
         "min_keyword_hits": 1
     },

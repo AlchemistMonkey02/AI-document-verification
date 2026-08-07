@@ -296,18 +296,19 @@ app.post("/verify", upload.single("document"), async (req, res) => {
         // If Keyword Gate FAILED, we might skip AI to save cost/time, but typically we want a reasoned rejection.
         let finalDecision;
 
-        if (!keywordGate.passed && rules) {
-            // Remove keyword arrays so we don't leak information to users
+        if ((!keywordGate.passed && rules) || fieldIssues.length > 0) {
             delete keywordGate.hits;
             delete keywordGate.missing;
-            keywordGate.details = "Document verification failed. Invalid document type.";
+            keywordGate.details = "Document verification failed. Invalid document type or field mismatch.";
 
             finalDecision = {
                 verdict: "REJECT",
                 risk_score: 100,
                 confidence: 100,
-                summary: "Uploaded document is fake or incorrect. Please check and upload the correct document again. Document verification failed.",
-                logical_validation_details: [],
+                summary: fieldIssues.length > 0 
+                    ? `Uploaded document failed field validation: ${fieldIssues.join("; ")}`
+                    : "Uploaded document is fake or incorrect. Please check and upload the correct document again. Document verification failed.",
+                logical_validation_details: fieldIssues,
                 authenticity_findings: []
             };
         } else {

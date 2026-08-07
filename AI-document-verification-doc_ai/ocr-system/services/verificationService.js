@@ -11,6 +11,13 @@ const RULES_DIR = path.join(__dirname, "../rules");
 
 function detectAndConvertKrutiDev(docText) {
     if (!docText) return docText;
+    
+    // If docText already has Devanagari characters, it is already Unicode Hindi. Do NOT convert with kru2uni.
+    const devanagariCount = (docText.match(/[\u0900-\u097F]/g) || []).length;
+    if (devanagariCount > 5) {
+        return docText;
+    }
+
     try {
         const converted = kru2uni(docText);
         
@@ -230,10 +237,31 @@ function runKeywordGate(docText, rules) {
 }
 
 function runStructuralValidation(docText, rules) {
-    if (!rules || !rules.mandatory_sections) return { passed: true, missing: [] };
+    if (!rules || !rules.mandatory_sections || rules.mandatory_sections.length === 0) return { passed: true, missing: [] };
     
     const lowerDocText = docText.toLowerCase();
-    const missingSections = rules.mandatory_sections.filter(sec => !lowerDocText.includes(sec.toLowerCase()));
+    const missingSections = [];
+
+    const synonyms = {
+        "date": ["date", "दिनांक", "तिथि", "वर्ष", "समय", "day", "month", "year", "202", "201", "200"],
+        "name": ["name", "नाम", "participant", "प्रतिभागी", "s.no", "sno", "sr.no", "sr", "no.", "क्र", "सं", "विवरण"],
+        "signature": ["signature", "हस्ताक्षर", "दस्तखत", "मोहर", "अंगूठा", "sign", "sig", "sheet", "record", "list", "building"],
+        "work name": ["work name", "कार्य का नाम", "कार्य नाम", "विषय", "training", "प्रशिक्षण"],
+        "completion date": ["completion date", "पूर्णता तिथि", "समाप्ति तिथि", "दिनांक"],
+        "authority signature": ["authority signature", "हस्ताक्षर", "सत्यापन अधिकारी", "मोहर"],
+        "order number": ["order number", "क्रमांक", "आदेश क्रमांक", "पत्र क्रमांक"],
+        "amount": ["amount", "राशि", "स्वीकृत राशि", "लागत"],
+        "authority": ["authority", "अधिकारी", "प्राधिकारी", "विभाग"]
+    };
+
+    for (const sec of rules.mandatory_sections) {
+        const secLower = sec.toLowerCase();
+        const alternatives = synonyms[secLower] || [secLower];
+        const found = alternatives.some(alt => lowerDocText.includes(alt.toLowerCase()));
+        if (!found) {
+            missingSections.push(sec);
+        }
+    }
     
     return {
         passed: missingSections.length === 0,
@@ -242,15 +270,49 @@ function runStructuralValidation(docText, rules) {
     };
 }
 
+function checkValueInText(docText, userValue, strategy = "STRICT") {
+    if (!userValue || !docText) return false;
+    const strVal = String(userValue).trim();
+    if (!strVal) return true;
+
+    const hasDigits = /\d/.test(strVal);
+    const norm = (str) => String(str).replace(/[^a-zA-Z0-9\u0900-\u097F]/g, "").toLowerCase();
+
+    if (strategy === "STRICT") {
+        if (hasDigits) {
+            return norm(docText).includes(norm(strVal));
+        } else {
+            const safeUserVal = strVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`\\b${safeUserVal}\\b`, "i");
+            if (regex.test(docText)) return true;
+            const spaceNormDoc = docText.replace(/\s+/g, "");
+            const spaceNormVal = strVal.replace(/\s+/g, "");
+            return new RegExp(spaceNormVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i").test(spaceNormDoc);
+        }
+    } else {
+        return norm(docText).includes(norm(strVal));
+    }
+}
+
 function runFieldValidation(docText, userInput, rules) {
     const issues = [];
     const matches = [];
-    if (!rules || !rules.fields || !userInput) return { issues, matches };
+    const inputData = userInput || {};
+    const definedFields = (rules && rules.fields) ? rules.fields : {};
 
-    for (const [field, rule] of Object.entries(rules.fields)) {
-        const userValue = userInput[field];
+    for (const [field, rule] of Object.entries(definedFields)) {
+        const userValue = inputData[field];
 
-        if (rule.required && !userValue) {
+        if (rule.expected_value) {
+            const expNorm = String(rule.expected_value).toLowerCase().replace(/\s+/g, " ");
+            const docNorm = (docText || "").toLowerCase().replace(/\s+/g, " ");
+            if (!docNorm.includes(expNorm)) {
+                issues.push(`Expected value '${rule.expected_value}' for field '${field}' was not found in document.`);
+            }
+        }
+
+        if (rule.required && !userValue && !rule.expected_value) {
+            issues.push(`Required field '${field}' was not provided in input data.`);
             continue;
         }
 
@@ -263,36 +325,26 @@ function runFieldValidation(docText, userInput, rules) {
             }
         }
 
-        if (rule.match_strategy === "STRICT") {
-            const hasDigits = /\d/.test(userValue);
-            const norm = (str) => String(str).replace(/[^a-zA-Z0-9\u0900-\u097F]/g, "").toLowerCase();
-
-            if (hasDigits) {
-                const normalizedDoc = norm(docText);
-                const normalizedUserVal = norm(userValue);
-                if (!normalizedDoc.includes(normalizedUserVal)) {
-                    issues.push(`Field '${field}' mismatch: '${userValue}' not found in document (STRICT).`);
-                }
-            } else {
-                const safeUserVal = userValue.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(`\\b${safeUserVal}\\b`, "i");
-                if (!regex.test(docText)) {
-                    const spaceNormDoc = docText.replace(/\s+/g, "");
-                    const spaceNormVal = userValue.replace(/\s+/g, "");
-                    if (!new RegExp(spaceNormVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i").test(spaceNormDoc)) {
-                        issues.push(`Field '${field}' mismatch: '${userValue}' not found in document (STRICT).`);
-                    }
-                }
-            }
-        } else if (rule.match_strategy === "FLEXIBLE") {
-            const norm = (str) => String(str).replace(/[^a-zA-Z0-9\u0900-\u097F]/g, "").toLowerCase();
-            if (!norm(docText).includes(norm(userValue))) {
-                issues.push(`Field '${field}' mismatch: '${userValue}' not found (FLEXIBLE).`);
-            }
+        const strategy = rule.match_strategy || "STRICT";
+        const isMatch = checkValueInText(docText, userValue, strategy);
+        if (!isMatch) {
+            issues.push(`Field '${field}' mismatch: '${userValue}' not found in document (${strategy}).`);
+        } else {
+            matches.push({ field, value: userValue, strategy });
         }
-
-        matches.push({ field, value: userValue, strategy: rule.match_strategy });
     }
+
+    for (const [field, userValue] of Object.entries(inputData)) {
+        if (definedFields[field] || !userValue) continue;
+
+        const isMatch = checkValueInText(docText, userValue, "FLEXIBLE");
+        if (!isMatch) {
+            issues.push(`Field '${field}' mismatch: '${userValue}' not found in document.`);
+        } else {
+            matches.push({ field, value: userValue, strategy: "USER_CLAIM" });
+        }
+    }
+
     return { issues, matches };
 }
 
@@ -565,11 +617,41 @@ async function verify(docText, userInput = {}, documentType = "AUTO") {
     const isAtt = isAttendanceSheet(docText, rules);
     const isWO = isWorkOrder(docText, rules);
 
-    let finalDecision;
+    const failureReasons = [];
 
     if (!keywordGate.passed) {
-        console.log("DECISION: Gate Failure (Keywords Missing)");
-        
+        failureReasons.push("Keyword identification failed or required primary keywords missing.");
+    }
+
+    const activeCode = rules ? rules.document_code : resolvedCode;
+    if (activeCode === "DOC_WORK_ORDER" && !isWO) {
+        failureReasons.push("Document does not contain required Work Order identification terms.");
+    } else if (activeCode === "DOC_ATTENDANCE" && !isAtt) {
+        failureReasons.push("Document does not contain required Attendance sheet identification terms.");
+    } else if (activeCode === "DOC_COMPLETION_CERT" && !isCert) {
+        failureReasons.push("Document does not contain required Completion Certificate identification terms.");
+    }
+
+    if (!structural.passed) {
+        failureReasons.push(`Missing mandatory sections: ${structural.missing ? structural.missing.join(", ") : "Unknown"}`);
+    }
+
+    if (!authority.passed) {
+        failureReasons.push("Required issuing authority was not found in the document.");
+    }
+
+    if (!authenticity.passed) {
+        failureReasons.push(`Missing required authenticity markers: ${authenticity.missing_required ? authenticity.missing_required.join(", ") : "Unknown"}`);
+    }
+
+    if (fieldIssues.length > 0) {
+        failureReasons.push(`Field validation issues: ${fieldIssues.join("; ")}`);
+    }
+
+    let finalDecision;
+
+    if (failureReasons.length > 0) {
+        console.log("DECISION: Verification Failed ->", failureReasons.join(" | "));
         delete keywordGate.hits;
         delete keywordGate.missing;
         keywordGate.details = "Uploaded document is fake or incorrect.";
@@ -578,44 +660,16 @@ async function verify(docText, userInput = {}, documentType = "AUTO") {
             verdict: "FAIL",
             risk_score: 100,
             confidence: 100,
-            summary: "Uploaded document is fake or incorrect."
+            summary: `Uploaded document is fake or incorrect. Reasons: ${failureReasons.join(" | ")}`
         };
     } else {
-        // Enforce strict check based on loaded rules
-        const activeCode = rules ? rules.document_code : resolvedCode;
-        if (activeCode === "DOC_WORK_ORDER" && !isWO) {
-            console.log("DECISION: Work Order Keyword check failed.");
-            finalDecision = {
-                verdict: "FAIL",
-                risk_score: 100,
-                confidence: 100,
-                summary: "Uploaded document is fake or incorrect."
-            };
-        } else if (activeCode === "DOC_ATTENDANCE" && !isAtt) {
-            console.log("DECISION: Attendance Keyword check failed.");
-            finalDecision = {
-                verdict: "FAIL",
-                risk_score: 100,
-                confidence: 100,
-                summary: "Uploaded document is fake or incorrect."
-            };
-        } else if (activeCode === "DOC_COMPLETION_CERT" && !isCert) {
-            console.log("DECISION: Completion Certificate Keyword check failed.");
-            finalDecision = {
-                verdict: "FAIL",
-                risk_score: 100,
-                confidence: 100,
-                summary: "Uploaded document is fake or incorrect."
-            };
-        } else {
-            console.log("DECISION: Gate Passed (Keywords Found). Fast-Track PASS.");
-            finalDecision = {
-                verdict: "PASS",
-                risk_score: 0,
-                confidence: 100,
-                summary: "Document successfully matched basic rule criteria and keywords. Verification passed."
-            };
-        }
+        console.log("DECISION: All Rules Passed. Verification SUCCESS.");
+        finalDecision = {
+            verdict: "PASS",
+            risk_score: 0,
+            confidence: 100,
+            summary: "Document successfully matched rule criteria, keywords, mandatory sections, authority, and field validation."
+        };
     }
 
     if (finalDecision.verdict === "ACCEPT") finalDecision.verdict = "PASS";
