@@ -41,12 +41,17 @@ async function pdfToImages(pdfPath) {
             const outputPrefix = path.join(opts.out_dir, opts.out_prefix);
             const cmd = `pdftocairo -png "${absolutePdfPath}" "${outputPrefix}"`;
             console.log("Executing fallback command:", cmd);
-            await execPromise(cmd);
+            const { stdout, stderr } = await execPromise(cmd);
+            console.log("Command stdout:", stdout);
+            console.log("Command stderr:", stderr);
         }
 
         // Return path to the first page image for simplicity (or handle multiple)
         // The user's controller logic seems to process 'page-1.png'
         const firstPageImage = path.join(opts.out_dir, `${opts.out_prefix}-1.png`);
+        if (!fs.existsSync(firstPageImage)) {
+            throw new Error(`Output image file was not created at absolute path: ${firstPageImage}`);
+        }
         return firstPageImage;
     } catch (error) {
         console.error("Error converting PDF to images:", error);
