@@ -561,6 +561,10 @@ async function verify(docText, userInput = {}, documentType = "AUTO") {
     const authenticity = runAuthenticityCheck(docText, rules);
     const authority = runIssuingAuthorityCheck(docText, rules);
 
+    const isCert = isCompletionCertificate(docText, rules);
+    const isAtt = isAttendanceSheet(docText, rules);
+    const isWO = isWorkOrder(docText, rules);
+
     let finalDecision;
 
     if (!keywordGate.passed) {
@@ -577,21 +581,45 @@ async function verify(docText, userInput = {}, documentType = "AUTO") {
             summary: "Uploaded document is fake or incorrect."
         };
     } else {
-        console.log("DECISION: Gate Passed (Keywords Found). Fast-Track PASS.");
-        finalDecision = {
-            verdict: "PASS",
-            risk_score: 0,
-            confidence: 100,
-            summary: "Document successfully matched basic rule criteria and keywords. Verification passed."
-        };
+        // Enforce strict check based on loaded rules
+        const activeCode = rules ? rules.document_code : resolvedCode;
+        if (activeCode === "DOC_WORK_ORDER" && !isWO) {
+            console.log("DECISION: Work Order Keyword check failed.");
+            finalDecision = {
+                verdict: "FAIL",
+                risk_score: 100,
+                confidence: 100,
+                summary: "Uploaded document is fake or incorrect."
+            };
+        } else if (activeCode === "DOC_ATTENDANCE" && !isAtt) {
+            console.log("DECISION: Attendance Keyword check failed.");
+            finalDecision = {
+                verdict: "FAIL",
+                risk_score: 100,
+                confidence: 100,
+                summary: "Uploaded document is fake or incorrect."
+            };
+        } else if (activeCode === "DOC_COMPLETION_CERT" && !isCert) {
+            console.log("DECISION: Completion Certificate Keyword check failed.");
+            finalDecision = {
+                verdict: "FAIL",
+                risk_score: 100,
+                confidence: 100,
+                summary: "Uploaded document is fake or incorrect."
+            };
+        } else {
+            console.log("DECISION: Gate Passed (Keywords Found). Fast-Track PASS.");
+            finalDecision = {
+                verdict: "PASS",
+                risk_score: 0,
+                confidence: 100,
+                summary: "Document successfully matched basic rule criteria and keywords. Verification passed."
+            };
+        }
     }
 
     if (finalDecision.verdict === "ACCEPT") finalDecision.verdict = "PASS";
     if (finalDecision.verdict === "REJECT") finalDecision.verdict = "FAIL";
-
-    const isCert = isCompletionCertificate(docText, rules);
-    const isAtt = isAttendanceSheet(docText, rules);
-    const isWO = isWorkOrder(docText, rules);
 
     return {
         status: finalDecision.verdict,
