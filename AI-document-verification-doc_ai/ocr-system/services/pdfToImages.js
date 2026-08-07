@@ -46,15 +46,15 @@ async function pdfToImages(pdfPath) {
             console.log("Command stderr:", stderr);
         }
 
-        // Return path to the first page image for simplicity (or handle multiple)
+        // Return paths to all page images sorted by name
         const files = fs.readdirSync(opts.out_dir);
         const matchingFiles = files.filter(f => f.startsWith(opts.out_prefix) && f.endsWith(".png"));
         if (matchingFiles.length === 0) {
             throw new Error(`Output image file was not created. No PNG files starting with prefix "${opts.out_prefix}" found in directory "${opts.out_dir}". Directory contents: ${files.join(", ")}`);
         }
         matchingFiles.sort();
-        const firstPageImage = path.join(opts.out_dir, matchingFiles[0]);
-        return firstPageImage;
+        const allPageImages = matchingFiles.map(file => path.join(opts.out_dir, file));
+        return allPageImages;
     } catch (error) {
         console.error("Error converting PDF to images:", error);
         throw new Error("Failed to convert PDF to images: " + error.message);

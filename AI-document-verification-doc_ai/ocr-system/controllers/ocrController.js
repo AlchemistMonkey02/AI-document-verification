@@ -16,9 +16,15 @@ async function extractTextFromFile(filePath) {
         text = await parsePDF(filePath);
         if (!text || text.trim().length < 10) {
             console.log("PDF seems to be scanned, converting to images...");
-            const imagePath = await pdfToImages(filePath);
-            const cleanImage = await preprocessImage(imagePath);
-            text = await runOCR(cleanImage);
+            const imagePaths = await pdfToImages(filePath);
+            const pageTexts = [];
+            for (const imagePath of imagePaths) {
+                console.log(`Processing scanned page: ${path.basename(imagePath)}`);
+                const cleanImage = await preprocessImage(imagePath);
+                const pageText = await runOCR(cleanImage);
+                pageTexts.push(pageText);
+            }
+            text = pageTexts.join("\n\n");
         }
     } else if ([".jpg", ".jpeg", ".png"].includes(ext)) {
         const cleanImage = await preprocessImage(filePath);
