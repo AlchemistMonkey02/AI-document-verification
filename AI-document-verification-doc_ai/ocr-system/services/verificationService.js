@@ -335,7 +335,7 @@ function runFieldValidation(docText, userInput, rules) {
     }
 
     for (const [field, userValue] of Object.entries(inputData)) {
-        if (definedFields[field] || !userValue) continue;
+        if (definedFields[field] || !userValue || ["keywords", "keyword", "inputKeywords", "required_keywords", "input_keywords"].includes(field)) continue;
 
         const isMatch = checkValueInText(docText, userValue, "FLEXIBLE");
         if (!isMatch) {
