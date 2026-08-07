@@ -404,6 +404,9 @@ async function aiLogicalCheckAndDecision({ docText, userInput, issues, matches, 
     DOCUMENT CONTEXT:
     Type: ${rules ? rules.document_name : documentType}
     
+    DOCUMENT CONTENT (EXTRACTED TEXT):
+    ${docText}
+    
     INPUT DATA:
     ${JSON.stringify(userInput, null, 2)}
 
