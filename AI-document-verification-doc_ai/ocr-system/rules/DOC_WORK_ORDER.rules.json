@@ -9,9 +9,11 @@
             "कार्य आदेश",
             "Sanction",
             "Amount",
-            "स्वीकृति"
+            "स्वीकृति",
+            "अनुमोदित",
+            "अनुबंधित"
         ],
-        "min_keyword_hits": 3
+        "min_keyword_hits": 1
     },
     "mandatory_sections": [
         "Order Number",

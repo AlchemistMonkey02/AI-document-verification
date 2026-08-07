@@ -1,12 +1,50 @@
 const fs = require("fs");
 const path = require("path");
 const runCrossChecks = require("./crossCheckService");
+const kru2uni = require("@anthro-ai/krutidev-unicode");
 
 // Configuration
 const MODEL_NAME = "qwen3:4b";
 const RULES_DIR = path.join(__dirname, "../rules");
 
 /* ---------------- HELPERS ---------------- */
+
+function detectAndConvertKrutiDev(docText) {
+    if (!docText) return docText;
+    try {
+        const converted = kru2uni(docText);
+        
+        // Gather Devanagari keywords from rules to see if converted text hits them
+        const allRules = loadAllRules();
+        const allKeywords = [];
+        for (const rule of allRules) {
+            if (rule.identification) {
+                if (Array.isArray(rule.identification.primary_keywords)) {
+                    allKeywords.push(...rule.identification.primary_keywords);
+                }
+                if (Array.isArray(rule.identification.secondary_keywords)) {
+                    allKeywords.push(...rule.identification.secondary_keywords);
+                }
+            }
+        }
+        
+        // Standard Hindi words commonly found in documents
+        const commonHindiWords = ["सरकार", "विभाग", "दिनांक", "कार्यालय", "महोदय", "जिला", "ब्लॉक", "आदेश", "प्रशिक्षण", "उपस्थिति", "हस्ताक्षर", "नाम", "विवरण", "स्वीकृति"];
+        const searchWords = [...new Set([...allKeywords, ...commonHindiWords])].filter(w => /[\u0900-\u097F]/.test(w));
+        
+        // Count hits in converted text
+        const lowerConverted = converted.toLowerCase();
+        const hits = searchWords.filter(word => lowerConverted.includes(word.toLowerCase()));
+        
+        if (hits.length >= 1) {
+            console.log(`[KrutiDev Detection] Converted text matched Hindi keywords: ${hits.slice(0, 5).join(", ")}. Converting document to Unicode Hindi.`);
+            return converted;
+        }
+    } catch (err) {
+        console.error("Error during KrutiDev detection/conversion:", err.message);
+    }
+    return docText;
+}
 
 function normalize(text) {
     return text.replace(/\s+/g, " ").trim();
@@ -129,9 +167,6 @@ function autoDetectDocumentType(docText) {
 }
 
 function isCompletionCertificate(docText, rules = null) {
-    if (rules && (rules.document_code === "DOC_COMPLETION_CERT" || (rules.identification && (rules.identification.primary_keywords || []).includes("प्रशिक्षण पूर्णता प्रमाण पत्र")))) {
-        return true;
-    }
     const certKeywords = [
         "completion certificate",
         "certificate of completion",
@@ -144,9 +179,6 @@ function isCompletionCertificate(docText, rules = null) {
 }
 
 function isAttendanceSheet(docText, rules = null) {
-    if (rules && rules.document_code === "DOC_ATTENDANCE") {
-        return true;
-    }
     const attendanceKeywords = [
         "attendance",
         "उपस्थिति",
@@ -158,15 +190,14 @@ function isAttendanceSheet(docText, rules = null) {
 }
 
 function isWorkOrder(docText, rules = null) {
-    if (rules && rules.document_code === "DOC_WORK_ORDER") {
-        return true;
-    }
     const workOrderKeywords = [
         "work order",
         "कार्यादेश",
         "कार्य आदेश",
         "sanction",
-        "स्वीकृति"
+        "स्वीकृति",
+        "अनुमोदित",
+        "अनुबंधित"
     ];
     const lower = (docText || "").toLowerCase();
     return workOrderKeywords.some(kw => lower.includes(kw.toLowerCase()));
@@ -414,6 +445,7 @@ async function aiLogicalCheckAndDecision({ docText, userInput, issues, matches, 
             const client = new OpenAI({
                 baseURL: 'https://ai.geoplanetsolution.in/v1',
                 apiKey: 'ollama',
+                timeout: 300000 // 5 minutes timeout to handle slow CPU thinking models
             });
 
             const response = await client.chat.completions.create({
@@ -447,6 +479,8 @@ async function aiLogicalCheckAndDecision({ docText, userInput, issues, matches, 
 async function verify(docText, userInput = {}, documentType = "AUTO") {
     console.log("--- START VERIFICATION ---");
     console.log("Input Document Type:", documentType);
+
+    docText = detectAndConvertKrutiDev(docText);
 
     const resolvedCode = resolveDocumentCode(documentType);
     let rules = null;
@@ -619,6 +653,7 @@ async function verify(docText, userInput = {}, documentType = "AUTO") {
 }
 
 async function verifyCompletionCertificate(docText, userInput = {}) {
+    docText = detectAndConvertKrutiDev(docText);
     const certRule = loadRules("DOC_COMPLETION_CERT");
     const keywordGate = certRule ? runKeywordGate(docText, certRule) : { passed: false };
     const certMatch = isCompletionCertificate(docText, certRule);
@@ -646,6 +681,7 @@ async function verifyCompletionCertificate(docText, userInput = {}) {
 }
 
 async function verifyAttendance(docText, userInput = {}) {
+    docText = detectAndConvertKrutiDev(docText);
     const attendanceRule = loadRules("DOC_ATTENDANCE");
     const keywordGate = attendanceRule ? runKeywordGate(docText, attendanceRule) : { passed: false };
     const attendanceMatch = isAttendanceSheet(docText, attendanceRule);
@@ -673,6 +709,7 @@ async function verifyAttendance(docText, userInput = {}) {
 }
 
 async function verifyWorkOrder(docText, userInput = {}) {
+    docText = detectAndConvertKrutiDev(docText);
     const workOrderRule = loadRules("DOC_WORK_ORDER");
     const keywordGate = workOrderRule ? runKeywordGate(docText, workOrderRule) : { passed: false };
     const workOrderMatch = isWorkOrder(docText, workOrderRule);

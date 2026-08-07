@@ -8,6 +8,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@anthro-ai/krutidev-unicode": "^0.1.0",
     "axios": "^1.13.2",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
