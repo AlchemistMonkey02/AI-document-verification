@@ -46,9 +46,9 @@ async function pdfToImages(pdfPath) {
             console.log("Command stderr:", stderr);
         }
 
-        // Return paths to all page images sorted by name
+        // Return paths to all page images sorted by name, avoiding clean/temp files
         const files = fs.readdirSync(opts.out_dir);
-        const matchingFiles = files.filter(f => f.startsWith(opts.out_prefix) && f.endsWith(".png"));
+        const matchingFiles = files.filter(f => f.startsWith(opts.out_prefix) && /-\d+\.png$/.test(f));
         if (matchingFiles.length === 0) {
             throw new Error(`Output image file was not created. No PNG files starting with prefix "${opts.out_prefix}" found in directory "${opts.out_dir}". Directory contents: ${files.join(", ")}`);
         }

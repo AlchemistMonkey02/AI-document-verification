@@ -11,7 +11,6 @@ async function preprocessImage(imagePath) {
         await sharp(imagePath)
             .grayscale()
             .normalize()
-            .threshold(150)
             .toFile(output);
 
         return output;
