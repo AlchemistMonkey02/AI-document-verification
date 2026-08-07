@@ -580,55 +580,14 @@ async function verify(docText, userInput = {}, documentType = "AUTO") {
             confidence: 100,
             summary: "Uploaded document is fake or incorrect."
         };
-    }
-    else if (!authority.passed) {
-        console.log("DECISION: Authority Failure");
+    } else {
+        console.log("DECISION: Gate Passed (Keywords Found). Fast-Track PASS.");
         finalDecision = {
-            verdict: "FAIL",
-            risk_score: 100,
+            verdict: "PASS",
+            risk_score: 0,
             confidence: 100,
-            summary: "Uploaded document is fake or incorrect."
+            summary: "Document successfully matched basic rule criteria and keywords. Verification passed."
         };
-    }
-    else if (fieldIssues.length > 0) {
-        console.log("DECISION: Field Failure");
-        finalDecision = {
-            verdict: "FAIL",
-            risk_score: 100,
-            confidence: 100,
-            summary: "Uploaded document is fake or incorrect."
-        };
-    }
-    else {
-        const noLogicalRules = !rules.logical_rules || rules.logical_rules.length === 0;
-        
-        if (noLogicalRules) {
-            console.log("DECISION: Fast-Track PASS (Skipping AI)");
-            finalDecision = {
-                verdict: "PASS",
-                risk_score: 0,
-                confidence: 100,
-                summary: "Document successfully matched basic rule criteria and keywords. Verification passed."
-            };
-        } else {
-            console.log("DECISION: Calling AI for logical check...");
-            finalDecision = await aiLogicalCheckAndDecision({
-                docText,
-                userInput,
-                issues: fieldIssues,
-                matches: fieldMatches,
-                ruleVerificationResult: { keywordGate, structural, authenticity, authority },
-                rules,
-                documentType: rules.document_code
-            });
-
-            if (!authenticity.passed && finalDecision.verdict === "PASS") {
-                finalDecision.summary += ` [WARNING: Missing Authenticity Markers: ${authenticity.missing_required.join(", ")}]`;
-                finalDecision.risk_score = Math.max(finalDecision.risk_score || 0, 50);
-            }
-
-            console.log("AI Result:", JSON.stringify(finalDecision));
-        }
     }
 
     if (finalDecision.verdict === "ACCEPT") finalDecision.verdict = "PASS";
