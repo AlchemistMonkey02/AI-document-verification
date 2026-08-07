@@ -193,11 +193,7 @@ function isWorkOrder(docText, rules = null) {
     const workOrderKeywords = [
         "work order",
         "कार्यादेश",
-        "कार्य आदेश",
-        "sanction",
-        "स्वीकृति",
-        "अनुमोदित",
-        "अनुबंधित"
+        "कार्य आदेश"
     ];
     const lower = (docText || "").toLowerCase();
     return workOrderKeywords.some(kw => lower.includes(kw.toLowerCase()));
@@ -223,16 +219,6 @@ function runKeywordGate(docText, rules) {
 
     if (primary_keywords.length > 0 && primaryHits.length === 0 && min_keyword_hits > 0) {
         passed = false;
-    }
-
-    // FALLBACK FOR SCANNED/OCR DOCUMENTS
-    if (!passed) {
-        const fallbacks = ["जिला", "प्रशिक्षण", "सरकार", "विभाग", "नाम", "हस्ताक्षर", "date", "no", "page", "sign", "roll", "sheet", "attendance", "completion", "work", "order"];
-        const matchedFallbacks = fallbacks.filter(f => lowerDocText.includes(f.toLowerCase()));
-        if (matchedFallbacks.length >= 1) {
-            console.log(`[Keyword Gate Fallback] Overriding failure because document contains fallback keywords: ${matchedFallbacks.join(", ")}`);
-            passed = true;
-        }
     }
 
     return {
