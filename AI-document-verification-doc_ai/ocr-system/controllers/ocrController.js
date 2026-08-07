@@ -7,6 +7,7 @@ const runOCR = require("../services/ocrEngine");
 const buildJSON = require("../services/jsonBuilder");
 const verificationService = require("../services/verificationService");
 const fs = require("fs");
+const path = require("path");
 
 async function extractTextFromFile(filePath) {
     const ext = detectFileType(filePath);
