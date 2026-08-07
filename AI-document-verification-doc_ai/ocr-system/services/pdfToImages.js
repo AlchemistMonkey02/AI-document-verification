@@ -17,7 +17,8 @@ if (process.platform === 'win32') {
 }
 
 async function pdfToImages(pdfPath) {
-    const outputDir = path.dirname(pdfPath).replace("uploads", "output");
+    const absolutePdfPath = path.resolve(pdfPath);
+    const outputDir = path.resolve(path.dirname(absolutePdfPath).replace("uploads", "output"));
     // Ensure output directory exists
     if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
@@ -26,19 +27,19 @@ async function pdfToImages(pdfPath) {
     const opts = {
         format: "png",
         out_dir: outputDir,
-        out_prefix: path.basename(pdfPath, path.extname(pdfPath)),
+        out_prefix: path.basename(absolutePdfPath, path.extname(absolutePdfPath)),
         page: null // null means all pages
     };
 
     try {
         if (pdfPoppler) {
             // pdf-poppler converts and saves files to out_dir
-            await pdfPoppler.convert(pdfPath, opts);
+            await pdfPoppler.convert(absolutePdfPath, opts);
         } else {
             // Fallback for Linux/Docker where pdf-poppler fails
             // Construct command: pdftocairo -png input.pdf output_prefix
             const outputPrefix = path.join(opts.out_dir, opts.out_prefix);
-            const cmd = `pdftocairo -png "${pdfPath}" "${outputPrefix}"`;
+            const cmd = `pdftocairo -png "${absolutePdfPath}" "${outputPrefix}"`;
             console.log("Executing fallback command:", cmd);
             await execPromise(cmd);
         }
