@@ -117,6 +117,9 @@ async function verifyDocument(req, res) {
 
         const documentType = req.params.document_type || req.body.documentType || req.body.document_type || "AUTO";
 
+        const filePath = req.file.path;
+        const text = await extractTextFromFile(filePath);
+
         const result = await verificationService.verify(text, userInput, documentType);
 
         if (result.status === "FAIL") {
