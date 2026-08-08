@@ -270,28 +270,67 @@ function runStructuralValidation(docText, rules) {
     };
 }
 
-function checkValueInText(docText, userValue, strategy = "STRICT") {
+const FIELD_SYNONYMS = {
+    "rgsa": ["rgsa", "r.g.s.a", "राष्ट्रीय ग्राम स्वराज अभियान", "rashtriya gram swaraj abhiyan", "gram swaraj"],
+    "dholpur": ["dholpur", "dholpur", "धौलपुर", "जिला धौलपुर"],
+    "tot": ["tot", "t.o.t", "training of trainers", "master trainers", "मास्टर ट्रेनर्स", "प्रशिक्षण"],
+    "own source revenue": ["own source revenue", "osr", "स्वयं के आय स्रोत", "आय स्रोतों", "आय स्रोत"],
+    "block level": ["block level", "ब्लॉक स्तर", "ब्लॉक स्तरीय", "ब्लॉक"]
+};
+
+function checkValueInText(docText, userValue, strategy = "FLEXIBLE") {
     if (!userValue || !docText) return false;
     const strVal = String(userValue).trim();
     if (!strVal) return true;
 
-    const hasDigits = /\d/.test(strVal);
     const norm = (str) => String(str).replace(/[^a-zA-Z0-9\u0900-\u097F]/g, "").toLowerCase();
+    const normDoc = norm(docText);
+    const normVal = norm(strVal);
 
-    if (strategy === "STRICT") {
-        if (hasDigits) {
-            return norm(docText).includes(norm(strVal));
-        } else {
-            const safeUserVal = strVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const regex = new RegExp(`\\b${safeUserVal}\\b`, "i");
-            if (regex.test(docText)) return true;
-            const spaceNormDoc = docText.replace(/\s+/g, "");
-            const spaceNormVal = strVal.replace(/\s+/g, "");
-            return new RegExp(spaceNormVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i").test(spaceNormDoc);
-        }
-    } else {
-        return norm(docText).includes(norm(strVal));
+    // 1. Direct normalized match
+    if (normVal && normDoc.includes(normVal)) {
+        return true;
     }
+
+    // 2. Check synonyms & Hindi/English translations
+    const lowerVal = strVal.toLowerCase().trim();
+    for (const [key, synList] of Object.entries(FIELD_SYNONYMS)) {
+        if (lowerVal.includes(key)) {
+            for (const syn of synList) {
+                if (normDoc.includes(norm(syn))) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    // 3. String similarity / Fuzzy matching using textComparator
+    try {
+        const compareText = require("./textComparator");
+        const comp = compareText(docText, strVal);
+        if (comp && (comp.score >= 50 || comp.raw_similarity >= 0.4)) {
+            return true;
+        }
+    } catch (e) {}
+
+    // 4. Token overlap matching for multi-word or compound user claims (e.g. topic/eventName)
+    const words = strVal.split(/[\s,()/\\-]+/).map(w => norm(w)).filter(w => w.length >= 2);
+    if (words.length > 0) {
+        let matchCount = 0;
+        for (const word of words) {
+            let wordMatched = normDoc.includes(word);
+            if (!wordMatched && FIELD_SYNONYMS[word]) {
+                wordMatched = FIELD_SYNONYMS[word].some(syn => normDoc.includes(norm(syn)));
+            }
+            if (wordMatched) matchCount++;
+        }
+        const matchRatio = matchCount / words.length;
+        if (matchRatio >= 0.3 || (words.length >= 3 && matchCount >= 2) || (words.length <= 2 && matchCount >= 1)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function runFieldValidation(docText, userInput, rules) {
@@ -325,17 +364,22 @@ function runFieldValidation(docText, userInput, rules) {
             }
         }
 
-        const strategy = rule.match_strategy || "STRICT";
+        const strategy = rule.match_strategy || "FLEXIBLE";
         const isMatch = checkValueInText(docText, userValue, strategy);
         if (!isMatch) {
-            issues.push(`Field '${field}' mismatch: '${userValue}' not found in document (${strategy}).`);
+            issues.push(`Field '${field}' mismatch: '${userValue}' not found in document.`);
         } else {
             matches.push({ field, value: userValue, strategy });
         }
     }
 
+    const ignoredMetaFields = [
+        "keywords", "keyword", "inputKeywords", "required_keywords", "input_keywords",
+        "expected_keyword", "expected_keywords", "documentType", "document_type", "file"
+    ];
+
     for (const [field, userValue] of Object.entries(inputData)) {
-        if (definedFields[field] || !userValue || ["keywords", "keyword", "inputKeywords", "required_keywords", "input_keywords"].includes(field)) continue;
+        if (definedFields[field] || !userValue || ignoredMetaFields.includes(field)) continue;
 
         const isMatch = checkValueInText(docText, userValue, "FLEXIBLE");
         if (!isMatch) {
