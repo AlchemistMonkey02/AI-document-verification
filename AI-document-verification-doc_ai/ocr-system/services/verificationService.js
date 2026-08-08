@@ -272,7 +272,10 @@ function runStructuralValidation(docText, rules) {
 
 const FIELD_SYNONYMS = {
     "rgsa": ["rgsa", "r.g.s.a", "राष्ट्रीय ग्राम स्वराज अभियान", "rashtriya gram swaraj abhiyan", "gram swaraj"],
-    "dholpur": ["dholpur", "dholpur", "धौलपुर", "जिला धौलपुर"],
+    "dholpur": ["dholpur", "धौलपुर", "जिला धौलपुर"],
+    "jhalawar": ["jhalawar", "झालावाड़", "झालादाड", "आलाबाड़", "जिला परिषद,झालावाड़", "जिला झालावाड़"],
+    "baran": ["baran", "बारां", "जिला बारां"],
+    "karauli": ["karauli", "करौली", "जिला करौली"],
     "tot": ["tot", "t.o.t", "training of trainers", "master trainers", "मास्टर ट्रेनर्स", "प्रशिक्षण"],
     "own source revenue": ["own source revenue", "osr", "स्वयं के आय स्रोत", "आय स्रोतों", "आय स्रोत"],
     "block level": ["block level", "ब्लॉक स्तर", "ब्लॉक स्तरीय", "ब्लॉक"]
